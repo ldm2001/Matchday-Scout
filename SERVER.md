@@ -167,7 +167,9 @@ pip install --upgrade pip setuptools wheel
 pip install -r requirements.txt
 ```
 
-### 4. 프론트엔드 빌드
+### 4. 프론트엔드 빌드 (중요!)
+
+**반드시 빌드를 실행해야 합니다.** 빌드하지 않으면 프론트엔드 서비스가 시작되지 않습니다.
 
 ```bash
 cd ~/Matchday-Scout/frontend
@@ -175,9 +177,14 @@ cd ~/Matchday-Scout/frontend
 # 의존성 설치
 npm install
 
-# 프로덕션 빌드
+# 프로덕션 빌드 (필수!)
 npm run build
+
+# 빌드 확인
+ls -la .next
 ```
+
+빌드가 완료되면 `.next` 디렉토리가 생성됩니다. 이 디렉토리가 없으면 `npm start`가 실패합니다.
 
 ### 5. Systemd 서비스 파일 생성
 
@@ -225,7 +232,8 @@ Type=simple
 User=ubuntu
 WorkingDirectory=/home/ubuntu/Matchday-Scout/frontend
 Environment="NODE_ENV=production"
-ExecStart=/usr/bin/npm start
+Environment="PATH=/home/ubuntu/.nvm/versions/node/v24.1.0/bin:/usr/bin:/usr/local/bin:/home/ubuntu/.local/bin"
+ExecStart=/home/ubuntu/.nvm/versions/node/v24.1.0/bin/npm start
 Restart=always
 RestartSec=10
 
@@ -340,18 +348,69 @@ server {
 
 ### 3. Nginx 설정 활성화
 
+#### 기존 설정 확인 및 비활성화
+
+먼저 현재 활성화된 설정을 확인합니다:
+
 ```bash
-# 기본 설정 비활성화 (선택사항)
-sudo rm /etc/nginx/sites-enabled/default
+# 활성화된 설정 파일 확인
+ls -la /etc/nginx/sites-enabled/
 
+# 현재 어떤 설정이 사용 중인지 확인
+sudo nginx -T | grep "server_name\|listen"
+```
+
+기존 설정을 비활성화합니다:
+
+```bash
+# 기본 설정이 있다면 비활성화
+sudo rm -f /etc/nginx/sites-enabled/default
+
+# 다른 기존 설정이 있다면 확인 후 비활성화
+# 예: mamat.kr 같은 기존 설정이 있는 경우
+sudo rm -f /etc/nginx/sites-enabled/mamat.kr
+
+# 또는 모든 기존 설정 확인 후 선택적으로 비활성화
+ls -la /etc/nginx/sites-enabled/
+# 필요한 설정만 남기고 나머지는 삭제
+```
+
+> **주의**: `sites-enabled` 경로를 정확히 입력하세요. `sites-enable` (오타)가 아닙니다!
+
+#### 새 설정 활성화
+
+```bash
 # 새 설정 활성화
-sudo ln -s /etc/nginx/sites-available/matchday-scout /etc/nginx/sites-enabled/
+sudo ln -sf /etc/nginx/sites-available/matchday-scout /etc/nginx/sites-enabled/matchday-scout
 
-# 설정 테스트
+# 활성화된 설정 확인
+ls -la /etc/nginx/sites-enabled/
+
+# 설정 파일 문법 확인
 sudo nginx -t
+```
 
+오류가 없으면:
+
+```bash
 # Nginx 재시작
 sudo systemctl restart nginx
+
+# 상태 확인
+sudo systemctl status nginx
+```
+
+#### 설정이 적용되지 않는 경우
+
+```bash
+# Nginx 설정 다시 로드
+sudo systemctl reload nginx
+
+# 또는 강제 재시작
+sudo systemctl restart nginx
+
+# 현재 사용 중인 설정 확인
+sudo nginx -T | head -50
 ```
 
 ### 4. 브라우저에서 접속
@@ -426,6 +485,170 @@ sudo ufw allow 443/tcp   # HTTPS
 
 ## 문제 해결
 
+### 502 Bad Gateway 오류 해결
+
+502 오류는 Nginx가 백엔드나 프론트엔드 서비스에 연결할 수 없을 때 발생합니다.
+
+#### 1. 서비스 실행 상태 확인
+
+```bash
+# 모든 서비스 상태 확인
+sudo systemctl status matchday-backend
+sudo systemctl status matchday-frontend
+sudo systemctl status nginx
+
+# 서비스가 실행 중인지 확인
+sudo systemctl is-active matchday-backend
+sudo systemctl is-active matchday-frontend
+```
+
+#### 2. 서비스가 실행되지 않은 경우 시작
+
+```bash
+# 서비스 시작
+sudo systemctl start matchday-backend
+sudo systemctl start matchday-frontend
+
+# 또는 재시작 스크립트 사용
+cd ~/Matchday-Scout
+./restart.sh
+```
+
+#### 3. 포트 리스닝 확인
+
+```bash
+# 백엔드 포트 (8000) 확인
+sudo ss -tlnp | grep 8000
+# 또는
+sudo netstat -tlnp | grep 8000
+
+# 프론트엔드 포트 (3000) 확인
+sudo ss -tlnp | grep 3000
+# 또는
+sudo netstat -tlnp | grep 3000
+```
+
+포트가 리스닝되지 않으면 서비스가 제대로 시작되지 않은 것입니다.
+
+#### 4. 서비스 로그 확인
+
+```bash
+# 백엔드 로그 확인
+sudo journalctl -u matchday-backend -n 50 --no-pager
+
+# 프론트엔드 로그 확인
+sudo journalctl -u matchday-frontend -n 50 --no-pager
+
+# Nginx 에러 로그 확인
+sudo tail -50 /var/log/nginx/error.log
+```
+
+#### 5. 로컬에서 직접 테스트
+
+```bash
+# 백엔드 직접 접속 테스트
+curl http://localhost:8000/health
+
+# 프론트엔드 직접 접속 테스트
+curl http://localhost:3000
+```
+
+#### 6. Nginx 설정 확인
+
+Nginx 설정에서 프록시 대상이 올바른지 확인:
+
+```bash
+# Nginx 설정 확인
+sudo cat /etc/nginx/sites-available/matchday-scout | grep proxy_pass
+```
+
+다음과 같이 설정되어 있어야 합니다:
+- 프론트엔드: `proxy_pass http://127.0.0.1:3000;`
+- 백엔드: `proxy_pass http://127.0.0.1:8000;`
+
+#### 7. 빠른 해결 방법
+
+```bash
+cd ~/Matchday-Scout
+
+# 모든 서비스 재시작
+./restart.sh
+
+# 또는 수동으로
+sudo systemctl restart matchday-backend
+sudo systemctl restart matchday-frontend
+sudo systemctl restart nginx
+
+# 상태 확인
+sudo systemctl status matchday-backend matchday-frontend nginx
+```
+
+#### 8. 포트가 리스닝되지 않는 경우 (가장 흔한 문제)
+
+포트 3000이 리스닝되지 않으면 프론트엔드가 제대로 시작되지 않은 것입니다.
+
+**단계별 해결:**
+
+1. **프론트엔드 로그 확인** (가장 먼저):
+```bash
+sudo journalctl -u matchday-frontend -n 100 --no-pager
+```
+
+2. **프론트엔드 빌드 확인 및 실행** (가장 중요!):
+
+에러 메시지: `Could not find a production build in the '.next' directory`
+
+```bash
+cd ~/Matchday-Scout/frontend
+
+# 빌드 확인
+ls -la .next
+
+# 빌드가 없다면 반드시 빌드 실행
+npm run build
+
+# 빌드 완료 확인 (BUILD_ID 파일이 있어야 함)
+ls -la .next/BUILD_ID
+
+# 빌드 완료 후 서비스 재시작
+sudo systemctl restart matchday-frontend
+
+# 포트 확인
+sleep 5
+sudo ss -tlnp | grep 3000
+```
+
+**빌드가 완료되어야만 `npm start`가 정상 작동합니다.**
+
+3. **수동으로 실행 테스트**:
+```bash
+cd ~/Matchday-Scout/frontend
+npm start
+```
+
+수동 실행이 안 되면:
+- 의존성 재설치: `npm install`
+- 빌드 재실행: `npm run build`
+- 로그 확인: 오류 메시지 확인
+
+4. **서비스 재시작**:
+```bash
+sudo systemctl restart matchday-frontend
+sleep 5
+sudo ss -tlnp | grep 3000
+```
+
+5. **여전히 안 되면 서비스 파일의 PATH 확인**:
+```bash
+sudo cat /etc/systemd/system/matchday-frontend.service
+```
+
+nvm 경로가 올바른지 확인하고, 필요시 수정 후:
+```bash
+sudo systemctl daemon-reload
+sudo systemctl restart matchday-frontend
+```
+
 ### 백엔드가 시작되지 않는 경우
 
 1. 로그 확인:
@@ -447,32 +670,198 @@ sudo netstat -tlnp | grep 8000
 
 ### 프론트엔드가 시작되지 않는 경우
 
-1. 로그 확인:
+#### exit-code 203/EXEC 오류 해결
+
+이 오류는 npm을 찾을 수 없거나 실행 권한 문제일 때 발생합니다.
+
+1. **npm 경로 확인**:
 ```bash
-sudo journalctl -u matchday-frontend -n 50
+# npm 위치 확인
+which npm
+# 또는
+whereis npm
+
+# npm 실행 테스트
+npm --version
 ```
 
-2. 빌드 확인:
+2. **서비스 파일 수정** (npm 경로가 다른 경우):
+
+```bash
+sudo nano /etc/systemd/system/matchday-frontend.service
+```
+
+**nvm을 사용하는 경우** (npm이 `/home/ubuntu/.nvm/versions/node/v24.1.0/bin/npm`인 경우):
+```ini
+[Service]
+Type=simple
+User=ubuntu
+WorkingDirectory=/home/ubuntu/Matchday-Scout/frontend
+Environment="NODE_ENV=production"
+Environment="PATH=/home/ubuntu/.nvm/versions/node/v24.1.0/bin:/usr/bin:/usr/local/bin:/home/ubuntu/.local/bin"
+ExecStart=/home/ubuntu/.nvm/versions/node/v24.1.0/bin/npm start
+Restart=always
+RestartSec=10
+```
+
+**일반 npm 설치인 경우**:
+```ini
+[Service]
+Type=simple
+User=ubuntu
+WorkingDirectory=/home/ubuntu/Matchday-Scout/frontend
+Environment="NODE_ENV=production"
+Environment="PATH=/usr/bin:/usr/local/bin:/home/ubuntu/.local/bin"
+ExecStart=/usr/bin/npm start
+# 또는 npm의 실제 경로 사용 (which npm 결과 사용)
+# ExecStart=/usr/local/bin/npm start
+Restart=always
+RestartSec=10
+```
+
+> **참고**: `which npm` 명령어로 확인한 경로를 `ExecStart`에 사용하고, PATH에도 해당 디렉토리를 추가하세요.
+
+3. **서비스 파일 확인 및 수정**:
+
+먼저 현재 서비스 파일 내용을 확인:
+```bash
+sudo cat /etc/systemd/system/matchday-frontend.service
+```
+
+**중요**: `ExecStart`는 하나만 있어야 합니다. 여러 개가 있다면 하나만 남기고 나머지는 삭제하세요.
+
+올바른 서비스 파일 예시 (nvm 사용 시):
+```ini
+[Unit]
+Description=Matchday Scout Frontend
+After=network.target
+
+[Service]
+Type=simple
+User=ubuntu
+WorkingDirectory=/home/ubuntu/Matchday-Scout/frontend
+Environment="NODE_ENV=production"
+Environment="PATH=/home/ubuntu/.nvm/versions/node/v24.1.0/bin:/usr/bin:/usr/local/bin:/home/ubuntu/.local/bin"
+ExecStart=/home/ubuntu/.nvm/versions/node/v24.1.0/bin/npm start
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target
+```
+
+4. **서비스 파일 리로드 및 재시작**:
+```bash
+sudo systemctl daemon-reload
+sudo systemctl restart matchday-frontend
+sudo systemctl status matchday-frontend
+```
+
+서비스가 정상적으로 실행되면 다음과 같이 표시됩니다:
+```
+Active: active (running)
+Main PID: [숫자] (node .../npm start)
+```
+
+5. **접속 확인**:
+```bash
+# 로컬에서 프론트엔드 테스트
+curl http://localhost:3000
+
+# 백엔드 테스트
+curl http://localhost:8000/health
+
+# 브라우저에서 접속
+# https://서버-IP주소
+```
+
+4. **로그 확인**:
+```bash
+sudo journalctl -u matchday-frontend -n 50 --no-pager
+```
+
+5. **빌드 확인**:
 ```bash
 cd ~/Matchday-Scout/frontend
 ls -la .next
+
+# 빌드가 없다면 다시 빌드
+npm run build
 ```
 
-3. 포트 사용 확인:
+6. **포트 사용 확인**:
 ```bash
 sudo netstat -tlnp | grep 3000
+# 또는
+sudo ss -tlnp | grep 3000
 ```
 
-### Nginx 오류
+7. **수동으로 실행 테스트**:
+```bash
+cd ~/Matchday-Scout/frontend
+npm start
+```
 
-1. 설정 파일 문법 확인:
+수동 실행이 되면 서비스 파일의 경로나 환경변수 문제입니다.
+
+### Nginx 오류 및 기존 설정 문제
+
+1. **현재 활성화된 설정 확인**:
+```bash
+# 활성화된 설정 파일 목록
+ls -la /etc/nginx/sites-enabled/
+
+# 실제 사용 중인 설정 확인
+sudo nginx -T | grep -A 10 "server {"
+```
+
+2. **기존 설정 비활성화 및 새 설정 적용**:
+```bash
+# 모든 활성화된 설정 확인
+ls -la /etc/nginx/sites-enabled/
+
+# 기존 설정 비활성화 (필요한 경우)
+sudo rm -f /etc/nginx/sites-enabled/default
+sudo rm -f /etc/nginx/sites-enabled/mamat.kr
+# 또는 다른 기존 설정 파일명
+
+# 새 설정 활성화
+sudo ln -sf /etc/nginx/sites-available/matchday-scout /etc/nginx/sites-enabled/matchday-scout
+
+# 활성화된 설정 확인 (matchday-scout만 남아야 함)
+ls -la /etc/nginx/sites-enabled/
+
+# 설정 테스트
+sudo nginx -t
+
+# Nginx 재시작
+sudo systemctl restart nginx
+```
+
+> **주의**: 경로는 `/etc/nginx/sites-enabled/`입니다. `sites-enable` (오타)가 아닙니다!
+```
+
+3. **설정 파일 문법 확인**:
 ```bash
 sudo nginx -t
 ```
 
-2. Nginx 로그 확인:
+4. **Nginx 로그 확인**:
 ```bash
-sudo tail -f /var/log/nginx/error.log
+# 에러 로그
+sudo tail -50 /var/log/nginx/error.log
+
+# 접근 로그
+sudo tail -50 /var/log/nginx/access.log
+```
+
+5. **포트 충돌 확인**:
+```bash
+# 80, 443 포트를 사용하는 프로세스 확인
+sudo lsof -i :80
+sudo lsof -i :443
+# 또는
+sudo ss -tlnp | grep -E ':(80|443)'
 ```
 
 ### 권한 문제
