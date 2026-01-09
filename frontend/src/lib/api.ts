@@ -3,11 +3,24 @@
 // 프로덕션에서는 상대 경로 사용 (Nginx가 /api로 프록시)
 // 개발 환경에서는 환경 변수 또는 localhost 사용
 const getApiBase = (): string => {
-  // 브라우저 환경에서는 상대 경로 사용
+  // 브라우저 환경에서는 항상 상대 경로 사용 (Nginx 프록시 활용)
+  // 프로덕션: 빈 문자열 → /api/... (Nginx가 처리)
+  // 개발: 환경 변수가 있으면 사용, 없으면 localhost
   if (typeof window !== 'undefined') {
-    return process.env.NEXT_PUBLIC_API_URL || '';
+    // 프로덕션 환경 감지 (localhost가 아닌 경우)
+    const isProduction = window.location.hostname !== 'localhost' && 
+                         window.location.hostname !== '127.0.0.1';
+    
+    if (isProduction) {
+      // 프로덕션: 항상 상대 경로 사용 (Nginx 프록시)
+      return '';
+    }
+    
+    // 개발 환경: 환경 변수 또는 localhost
+    return process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
   }
-  // 서버 사이드에서는 환경 변수 또는 localhost 사용
+  
+  // 서버 사이드 렌더링: 환경 변수 또는 localhost
   return process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 };
 
