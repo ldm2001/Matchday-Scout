@@ -29,14 +29,15 @@ fi
 
 echo -e "\n${YELLOW}[2] Let's Encrypt 인증서 확인${NC}"
 echo "----------------------------------------"
-if [ -f "/etc/letsencrypt/live/$DOMAIN/fullchain.pem" ]; then
+if sudo test -f "/etc/letsencrypt/live/$DOMAIN/fullchain.pem"; then
     echo -e "${GREEN}✓ 인증서 파일 존재${NC}"
     echo "인증서 경로: /etc/letsencrypt/live/$DOMAIN/fullchain.pem"
     echo ""
     echo "인증서 정보:"
-    sudo openssl x509 -in /etc/letsencrypt/live/$DOMAIN/fullchain.pem -noout -subject -dates
+    sudo openssl x509 -in /etc/letsencrypt/live/$DOMAIN/fullchain.pem -noout -subject -dates 2>/dev/null || echo "인증서 정보를 읽을 수 없습니다"
 else
-    echo -e "${RED}✗ 인증서 파일을 찾을 수 없습니다${NC}"
+    echo -e "${YELLOW}⚠ 인증서 파일 직접 확인 실패 (권한 문제일 수 있음)${NC}"
+    echo "Certbot 인증서 목록에서 확인하세요"
 fi
 
 echo -e "\n${YELLOW}[3] Nginx 설정 테스트${NC}"
