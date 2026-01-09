@@ -264,7 +264,171 @@ sudo systemctl status matchday-frontend
 
 ## HTTPS 설정
 
-### 1. 자체 서명 인증서 생성 (도메인 없이 사용)
+### 프로덕션 환경 SSL 인증서 선택
+
+**도메인이 있는 경우**: Let's Encrypt 무료 SSL 인증서 사용 (권장)
+**도메인이 없는 경우 (IP 주소만)**: 자체 서명 인증서 사용 (브라우저 경고 발생)
+
+> **중요**: Let's Encrypt는 도메인 이름이 필요합니다. IP 주소만으로는 사용할 수 없습니다.
+
+---
+
+### 옵션 1: Let's Encrypt 사용 (도메인이 있는 경우 - 권장)
+
+현재 도메인: **mscout.xyz**
+
+#### 1. 도메인 DNS 설정 (먼저 완료 필요)
+
+도메인 등록 업체(예: Namecheap, GoDaddy, Cloudflare 등)에서 DNS 설정:
+
+**A 레코드 추가:**
+- 호스트: `@` 또는 `mscout.xyz` 또는 빈 값
+- 값/포인트: `43.201.164.55`
+- TTL: 3600 (또는 기본값)
+
+**www 서브도메인 (선택사항):**
+- 호스트: `www`
+- 값/포인트: `43.201.164.55`
+- TTL: 3600
+
+**DNS 전파 확인:**
+
+```bash
+# 방법 1: nslookup
+nslookup mscout.xyz
+# 43.201.164.55가 나와야 함
+
+# 방법 2: dig (더 자세한 정보)
+dig mscout.xyz +short
+# 43.201.164.55가 나와야 함
+
+# 방법 3: 온라인 도구 사용
+# https://dnschecker.org 에서 mscout.xyz 확인
+```
+
+**DNS 전파 시간:**
+- 보통 몇 분~몇 시간 소요
+- 최대 24-48시간까지 걸릴 수 있음
+- 전파가 완료되기 전까지 Let's Encrypt 인증서 발급 불가
+
+**NXDOMAIN 오류 해결:**
+
+`nslookup mscout.xyz`에서 `NXDOMAIN` 오류가 나오면:
+
+1. **도메인 등록 확인:**
+   - 도메인이 실제로 등록되어 있는지 확인
+   - 도메인 등록 업체에서 도메인 상태 확인
+
+2. **DNS 설정 확인:**
+   - 도메인 등록 업체의 DNS 관리 페이지에서 A 레코드가 올바르게 설정되었는지 확인
+   - 호스트: `@` 또는 `mscout.xyz`
+   - 값: `43.201.164.55`
+
+3. **DNS 서버 확인:**
+   ```bash
+   # 도메인의 네임서버 확인
+   dig NS mscout.xyz
+   
+   # 특정 네임서버에서 직접 확인
+   dig @ns1.example.com mscout.xyz
+   ```
+
+4. **전파 대기:**
+   - DNS 설정 후 전파를 기다림
+   - 온라인 DNS 체커(https://dnschecker.org)로 전세계 전파 상태 확인
+
+**DNS 전파 완료 확인 후 진행:**
+DNS가 전파되어 `nslookup mscout.xyz`에서 `43.201.164.55`가 나올 때까지 기다린 후 Let's Encrypt 인증서 발급을 진행하세요.
+
+#### 2. Certbot 설치
+
+```bash
+sudo apt update
+sudo apt install -y certbot python3-certbot-nginx
+```
+
+#### 3. Nginx 설정 파일 수정 (도메인 사용)
+
+기존 설정을 도메인으로 변경:
+
+```bash
+sudo nano /etc/nginx/sites-available/matchday-scout
+```
+
+`server_name _;`를 `server_name mscout.xyz www.mscout.xyz;`로 변경:
+
+```nginx
+# HTTP를 HTTPS로 리다이렉트
+server {
+    listen 80;
+    server_name mscout.xyz www.mscout.xyz;
+    return 301 https://$host$request_uri;
+}
+
+# HTTPS 서버
+server {
+    listen 443 ssl http2;
+    server_name mscout.xyz www.mscout.xyz;
+    
+    # SSL 인증서는 Certbot이 자동으로 설정함
+    # ssl_certificate /etc/nginx/ssl/matchday-scout.crt;
+    # ssl_certificate_key /etc/nginx/ssl/matchday-scout.key;
+    
+    # ... 나머지 설정
+}
+```
+
+설정 테스트 및 재시작:
+```bash
+sudo nginx -t
+sudo systemctl restart nginx
+```
+
+#### 4. SSL 인증서 발급
+
+```bash
+# mscout.xyz 도메인으로 인증서 발급
+sudo certbot --nginx -d mscout.xyz -d www.mscout.xyz
+
+# Certbot이 자동으로:
+# - SSL 인증서 발급
+# - Nginx 설정 자동 업데이트
+# - 자동 갱신 설정
+```
+
+인증서 발급 중 Certbot이 물어보는 질문:
+- Email 주소 입력 (선택사항)
+- Terms of Service 동의: `Y`
+- 이메일 공유 동의: `Y` 또는 `N`
+
+#### 5. 인증서 자동 갱신 확인
+
+```bash
+# 갱신 테스트
+sudo certbot renew --dry-run
+
+# 자동 갱신은 systemd timer로 설정됨
+sudo systemctl status certbot.timer
+
+# 자동 갱신 활성화 확인
+sudo systemctl enable certbot.timer
+```
+
+#### 6. 접속 확인
+
+```bash
+# HTTPS 접속 테스트 (경고 없이 작동해야 함)
+curl -I https://mscout.xyz
+curl -I https://www.mscout.xyz
+```
+
+브라우저에서 `https://mscout.xyz` 접속 시 경고 없이 접속됩니다.
+
+---
+
+### 옵션 2: 자체 서명 인증서 (IP 주소만 있는 경우)
+
+도메인이 없고 IP 주소만 있는 경우:
 
 ```bash
 sudo mkdir -p /etc/nginx/ssl
@@ -280,17 +444,17 @@ sudo openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
 sudo nano /etc/nginx/sites-available/matchday-scout
 ```
 
-다음 내용 추가:
+다음 내용을 **정확히** 추가하세요 (두 개의 별도 server 블록):
 
 ```nginx
-# HTTP를 HTTPS로 리다이렉트
+# HTTP를 HTTPS로 리다이렉트 (첫 번째 server 블록)
 server {
     listen 80;
     server_name _;
     return 301 https://$host$request_uri;
 }
 
-# HTTPS 서버
+# HTTPS 서버 (두 번째 server 블록)
 server {
     listen 443 ssl http2;
     server_name _;
@@ -413,9 +577,330 @@ sudo systemctl restart nginx
 sudo nginx -T | head -50
 ```
 
-### 4. 브라우저에서 접속
+### 4. HTTPS 설정 확인 및 수정
 
-자체 서명 인증서이므로 브라우저에서 경고가 표시됩니다. "고급" → "계속 진행"을 클릭하여 접속할 수 있습니다.
+HTTPS가 작동하지 않는 경우 단계별로 확인하세요:
+
+#### 1단계: SSL 인증서 확인
+
+```bash
+# SSL 인증서 파일 확인
+sudo ls -la /etc/nginx/ssl/
+
+# 인증서가 없다면 생성
+sudo mkdir -p /etc/nginx/ssl
+sudo openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
+  -keyout /etc/nginx/ssl/matchday-scout.key \
+  -out /etc/nginx/ssl/matchday-scout.crt \
+  -subj "/C=KR/ST=Seoul/L=Seoul/O=Matchday Scout/CN=localhost"
+
+# 인증서 권한 확인
+sudo chmod 600 /etc/nginx/ssl/matchday-scout.key
+sudo chmod 644 /etc/nginx/ssl/matchday-scout.crt
+```
+
+#### 2단계: Nginx 설정 확인
+
+```bash
+# 현재 설정 확인
+sudo cat /etc/nginx/sites-available/matchday-scout
+
+# 설정 파일 수정
+sudo nano /etc/nginx/sites-available/matchday-scout
+```
+
+#### 3단계: 포트 80, 443 리스닝 확인
+
+```bash
+# 포트 80, 443이 리스닝 중인지 확인
+sudo ss -tlnp | grep -E ':(80|443)'
+# 또는
+sudo netstat -tlnp | grep -E ':(80|443)'
+```
+
+포트가 리스닝되지 않으면:
+1. Nginx가 실행되지 않았을 수 있음
+2. Nginx 설정에 오류가 있을 수 있음
+3. Lightsail 방화벽에서 포트가 닫혀있을 수 있음
+
+```bash
+# Nginx 상태 확인
+sudo systemctl status nginx
+
+# Nginx가 실행되지 않았다면 시작
+sudo systemctl start nginx
+
+# Nginx 설정 테스트
+sudo nginx -t
+```
+
+#### 포트 80이 리스닝되지 않는 경우 (Connection refused)
+
+HTTPS는 작동하지만 HTTP(포트 80)가 작동하지 않는 경우:
+
+```bash
+# 1. 포트 80 사용 확인
+sudo ss -tlnp | grep :80
+sudo lsof -i :80
+
+# 2. Nginx 설정에서 listen 80 확인
+sudo cat /etc/nginx/sites-available/matchday-scout | grep "listen 80"
+
+# 3. Nginx 설정 파일에 HTTP server 블록이 있는지 확인
+sudo cat /etc/nginx/sites-available/matchday-scout
+
+# 4. HTTP server 블록이 없다면 추가 필요
+# 첫 번째 server 블록이 있어야 함:
+# server {
+#     listen 80;
+#     server_name _;
+#     return 301 https://$host$request_uri;
+# }
+
+# 5. Nginx 재시작
+sudo systemctl restart nginx
+
+# 6. 포트 확인
+sudo ss -tlnp | grep :80
+```
+
+**참고**: HTTPS가 작동한다면 서비스 자체는 정상입니다. HTTP 리다이렉트만 설정하면 됩니다.
+
+#### HTTP가 HTTPS로 리다이렉트되지 않는 경우
+
+HTTP로 접속했는데 HTTPS로 자동 리다이렉트가 안 되는 경우:
+
+```bash
+# 1. HTTP server 블록이 제대로 있는지 확인
+sudo cat /etc/nginx/sites-available/matchday-scout | head -10
+
+# 2. HTTP 리다이렉트 테스트
+curl -I http://43.201.164.55
+# 301 Moved Permanently와 Location: https://... 가 나와야 함
+
+# 3. Nginx 설정 테스트
+sudo nginx -t
+
+# 4. Nginx 재시작 (강제)
+sudo systemctl stop nginx
+sudo systemctl start nginx
+
+# 5. Nginx 에러 로그 확인
+sudo tail -50 /var/log/nginx/error.log
+
+# 6. 활성화된 설정 확인
+ls -la /etc/nginx/sites-enabled/
+# matchday-scout만 있어야 함
+
+# 7. 설정 파일이 활성화되어 있는지 확인
+sudo cat /etc/nginx/sites-enabled/matchday-scout | head -10
+```
+
+**확인 사항:**
+- HTTP server 블록이 파일 맨 위에 있어야 함
+- `return 301 https://$host$request_uri;`가 정확히 있어야 함
+- Nginx가 재시작되었는지 확인
+- 브라우저 캐시를 지우고 다시 시도
+
+#### 4단계: Lightsail 방화벽 확인 (중요!)
+
+Lightsail 콘솔에서:
+1. 인스턴스 선택
+2. **Networking** 탭 클릭
+3. **Firewall** 섹션 확인
+4. **HTTPS (443)** 포트가 열려있는지 확인
+5. 없다면 추가하고 **Save** 클릭
+
+#### 5단계: Nginx 설정 테스트 및 재시작
+
+```bash
+# 설정 파일 문법 확인
+sudo nginx -t
+
+# 오류가 없다면 재시작
+sudo systemctl restart nginx
+
+# Nginx 상태 확인
+sudo systemctl status nginx
+
+# Nginx 에러 로그 확인
+sudo tail -50 /var/log/nginx/error.log
+```
+
+#### 6단계: IP 주소로 HTTPS 접속 테스트
+
+```bash
+# 서버 IP 주소로 HTTPS 접속 테스트
+curl -k https://43.201.164.55
+
+# 또는 로컬에서 테스트
+curl -k https://localhost
+# -k 옵션은 자체 서명 인증서 경고를 무시합니다
+```
+
+#### 7단계: IP 주소 접속 확인
+
+현재 설정(`server_name _;`)은 IP 주소 접속을 허용합니다.
+
+**접속 방법:**
+- HTTP: `http://43.201.164.55` → 자동으로 HTTPS로 리다이렉트
+- HTTPS: `https://43.201.164.55`
+
+**브라우저에서 접속 시:**
+1. 자체 서명 인증서 경고가 표시됩니다 (정상)
+2. "고급" 또는 "Advanced" 클릭
+3. "계속 진행" 또는 "Proceed to 43.201.164.55" 클릭
+
+**확인 사항:**
+```bash
+# 1. 포트 80, 443 리스닝 확인
+sudo ss -tlnp | grep -E ':(80|443)'
+
+# 2. Nginx 설정에서 server_name 확인
+sudo cat /etc/nginx/sites-available/matchday-scout | grep server_name
+
+# 3. 실제 IP 주소로 접속 테스트
+curl -I http://43.201.164.55
+# 301 리다이렉트가 나와야 함
+
+curl -k -I https://43.201.164.55
+# 200 OK가 나와야 함
+```
+
+**올바른 설정 구조** (반드시 두 개의 별도 server 블록):
+
+```nginx
+# 첫 번째 server 블록: HTTP를 HTTPS로 리다이렉트
+# server_name _; 는 모든 호스트명과 IP 주소를 허용합니다
+server {
+    listen 80;
+    server_name _;
+    return 301 https://$host$request_uri;
+}
+
+# 두 번째 server 블록: HTTPS 서버
+# IP 주소(43.201.164.55)로 접속 가능합니다
+server {
+    listen 443 ssl http2;
+    server_name _;  # _ 는 모든 호스트명과 IP 주소를 허용
+
+    ssl_certificate /etc/nginx/ssl/matchday-scout.crt;
+    ssl_certificate_key /etc/nginx/ssl/matchday-scout.key;
+
+    ssl_protocols TLSv1.2 TLSv1.3;
+    ssl_ciphers HIGH:!aNULL:!MD5;
+    ssl_prefer_server_ciphers on;
+
+    # 프론트엔드 프록시
+    location / {
+        proxy_pass http://127.0.0.1:3000;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection 'upgrade';
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_cache_bypass $http_upgrade;
+    }
+
+    # 백엔드 API 프록시
+    location /api {
+        proxy_pass http://127.0.0.1:8000;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+
+    # 백엔드 문서 프록시
+    location /docs {
+        proxy_pass http://127.0.0.1:8000;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+
+    location /redoc {
+        proxy_pass http://127.0.0.1:8000;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+}
+```
+
+**잘못된 설정 예시** (이렇게 하면 안 됨):
+- ❌ `listen 80`과 `listen 443`이 같은 server 블록에 있음
+- ❌ `ssl_certificate`가 중복되어 있음
+- ❌ server 블록이 제대로 닫히지 않음
+
+```bash
+# 3. SSL 인증서 확인 및 생성 (없다면)
+sudo ls -la /etc/nginx/ssl/
+sudo mkdir -p /etc/nginx/ssl
+sudo openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
+  -keyout /etc/nginx/ssl/matchday-scout.key \
+  -out /etc/nginx/ssl/matchday-scout.crt \
+  -subj "/C=KR/ST=Seoul/L=Seoul/O=Matchday Scout/CN=localhost"
+
+# 4. Nginx 설정 테스트
+sudo nginx -t
+
+# 5. Nginx 재시작
+sudo systemctl restart nginx
+
+# 6. 포트 확인
+sudo ss -tlnp | grep -E ':(80|443)'
+```
+
+### 5. 브라우저에서 접속
+
+#### 자체 서명 인증서 경고 (정상)
+
+자체 서명 인증서를 사용하므로 브라우저에서 다음과 같은 경고가 표시됩니다:
+
+**Chrome/Edge 경고 메시지:**
+```
+연결이 비공개로 설정되어 있지 않습니다.
+공격자가 43.201.164.55에서 사용자의 정보를 도용하려고 시도할 수 있습니다.
+net::ERR_CERT_AUTHORITY_INVALID
+이 서버가 43.201.164.55임을 입증할 수 없으며 컴퓨터의 운영체제에서 신뢰하는 보안 인증서가 아닙니다.
+```
+
+**이것은 정상입니다!** 자체 서명 인증서를 사용하기 때문에 나타나는 경고입니다.
+
+#### 접속 방법
+
+1. **경고 화면에서:**
+   - "고급" 또는 "Advanced" 버튼 클릭
+   - "43.201.164.55(안전하지 않음)으로 이동" 또는 "Proceed to 43.201.164.55 (unsafe)" 클릭
+
+2. **또는 직접 입력:**
+   - 주소창에 `thisisunsafe` 입력 (Chrome에서만 작동)
+   - 또는 `https://43.201.164.55` 입력 후 경고 무시
+
+3. **시크릿 모드에서 테스트:**
+   - 시크릿 모드로 접속하면 경고가 표시되지만 접속은 가능합니다
+
+#### 프로덕션 환경 권장사항
+
+**도메인이 있는 경우:**
+- **Let's Encrypt** 무료 SSL 인증서 사용 (위의 "옵션 1: Let's Encrypt 사용" 참고)
+- 자동 갱신, 브라우저 경고 없음, 완전 무료
+
+**도메인이 없는 경우 (IP 주소만):**
+- 자체 서명 인증서 사용 (현재 설정)
+- 브라우저 경고 발생 (정상)
+- 또는 상용 IP 주소 SSL 인증서 구매 (비용 발생)
+
+**프로덕션 환경 권장:**
+도메인을 구매하여 Let's Encrypt를 사용하는 것을 강력히 권장합니다. 도메인 비용은 연간 약 $10-15 정도입니다.
 
 ---
 
@@ -923,14 +1408,69 @@ npm run build
 
 ## 접속 정보
 
-- **프론트엔드**: `https://서버-IP주소`
-- **백엔드 API**: `https://서버-IP주소/api`
-- **API 문서**: `https://서버-IP주소/docs`
+현재 서버 IP 주소: **43.201.164.55**
+
+- **프론트엔드**: `https://43.201.164.55` 또는 `http://43.201.164.55` (자동 HTTPS 리다이렉트)
+- **백엔드 API**: `https://43.201.164.55/api`
+- **API 문서**: `https://43.201.164.55/docs`
+- **ReDoc**: `https://43.201.164.55/redoc`
+
+### IP 주소 접속 확인
+
+서버에서 다음 명령어로 확인하세요:
+
+```bash
+# HTTP 접속 테스트 (301 리다이렉트 확인)
+curl -I http://43.201.164.55
+
+# HTTPS 접속 테스트
+curl -k -I https://43.201.164.55
+
+# 프론트엔드 직접 확인
+curl -k https://43.201.164.55
+
+# 백엔드 API 확인
+curl -k https://43.201.164.55/api/health
+```
+
+**중요**: 
+- `server_name _;` 설정은 모든 호스트명과 IP 주소를 허용하므로 IP 주소로 접속 가능합니다
+- 자체 서명 인증서이므로 브라우저에서 경고가 표시됩니다 (정상)
+- 경고 화면에서 "고급" → "43.201.164.55(안전하지 않음)으로 이동" 클릭하면 접속됩니다
+- 또는 주소창에 `thisisunsafe` 입력 (Chrome에서만 작동)
 
 ---
 
 ## 참고사항
 
-- 자체 서명 인증서는 브라우저에서 경고를 표시합니다. 프로덕션 환경에서는 Let's Encrypt와 같은 공인 인증서 사용을 권장합니다.
-- 도메인이 있는 경우, Nginx 설정의 `server_name`을 도메인으로 변경하고 Let's Encrypt를 사용할 수 있습니다.
+### SSL 인증서
+
+- **자체 서명 인증서**: IP 주소만 있는 경우 사용. 브라우저 경고 발생 (정상)
+- **Let's Encrypt**: 도메인이 있는 경우 사용 권장. 무료, 자동 갱신, 브라우저 경고 없음
+- **상용 인증서**: IP 주소용으로도 구매 가능하지만 비용 발생
+
+### 도메인 설정 (mscout.xyz)
+
+현재 도메인: **mscout.xyz**
+
+**설정 단계:**
+1. ✅ 도메인 구매 완료: mscout.xyz
+2. DNS A 레코드 설정: `mscout.xyz` → `43.201.164.55`
+3. DNS 전파 대기 (보통 몇 분~몇 시간)
+4. Let's Encrypt로 SSL 인증서 발급 (위의 "옵션 1: Let's Encrypt 사용" 참고)
+5. Nginx 설정의 `server_name`을 `mscout.xyz www.mscout.xyz`로 변경
+
+**DNS 설정 확인:**
+```bash
+nslookup mscout.xyz
+# 43.201.164.55가 나와야 함
+```
+
+### 프로덕션 환경 권장사항
+
+프로덕션 환경에서는 도메인을 구매하여 Let's Encrypt를 사용하는 것을 강력히 권장합니다:
+- 브라우저 경고 없음
+- 사용자 신뢰도 향상
+- 완전 무료 (도메인 비용만)
+- 자동 갱신
 
