@@ -7,7 +7,7 @@ const getApiBase = (): string => {
   // Nginx가 /api 경로를 백엔드로 프록시하므로 상대 경로가 올바름
   if (typeof window !== 'undefined') {
     // 브라우저에서는 무조건 상대 경로 사용
-    // 이렇게 하면 프로덕션/개발 환경 구분 없이 Nginx 프록시를 통해 작동
+    // 환경 변수는 완전히 무시 (빌드 타임 환경 변수 문제 방지)
     return '';
   }
   
@@ -19,6 +19,15 @@ const getApiBase = (): string => {
 async function fetchAPI<T>(endpoint: string): Promise<T> {
     // 매번 호출 시점에 API_BASE를 계산 (런타임에 결정)
     const API_BASE = getApiBase();
+    
+    // 디버깅: 프로덕션에서 문제 확인용 (나중에 제거 가능)
+    if (typeof window !== 'undefined' && process.env.NODE_ENV === 'production') {
+      const fullUrl = `${API_BASE}${endpoint}`;
+      if (fullUrl.includes('localhost') || fullUrl.startsWith('http://') || fullUrl.startsWith('https://')) {
+        console.warn('[API] 잘못된 API 경로 감지:', fullUrl, '→ 상대 경로로 변경해야 함');
+      }
+    }
+    
     const res = await fetch(`${API_BASE}${endpoint}`);
     if (!res.ok) {
         throw new Error(`API Error: ${res.status}`);
