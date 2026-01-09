@@ -1,6 +1,17 @@
 // API 클라이언트
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+// 프로덕션에서는 상대 경로 사용 (Nginx가 /api로 프록시)
+// 개발 환경에서는 환경 변수 또는 localhost 사용
+const getApiBase = (): string => {
+  // 브라우저 환경에서는 상대 경로 사용
+  if (typeof window !== 'undefined') {
+    return process.env.NEXT_PUBLIC_API_URL || '';
+  }
+  // 서버 사이드에서는 환경 변수 또는 localhost 사용
+  return process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+};
+
+const API_BASE = getApiBase();
 
 async function fetchAPI<T>(endpoint: string): Promise<T> {
     const res = await fetch(`${API_BASE}${endpoint}`);
