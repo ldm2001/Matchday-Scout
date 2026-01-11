@@ -31,8 +31,10 @@ class NetworkAnalyzer:
         self.events = events_df
         self.graph = None
         self.player_stats = {}
+        self._centrality_cache = None
         
     def pass_network(self) -> nx.DiGraph:
+        self._centrality_cache = None
         self.graph = nx.DiGraph()
         passes = self.events[self.events['type_name'] == 'Pass'].copy()
         pass_received = self.events[self.events['type_name'] == 'Pass Received'].copy()
@@ -70,6 +72,8 @@ class NetworkAnalyzer:
         return self.graph
     
     def centrality(self) -> Dict:
+        if self._centrality_cache is not None:
+            return self._centrality_cache
         if self.graph is None: self.pass_network()
         if len(self.graph.nodes) == 0: return {}
         
@@ -98,6 +102,7 @@ class NetworkAnalyzer:
                 'passes_made': safe_int(out_degree.get(node, 0)),
                 'hub_score': round(safe_float(hub_score), 4)
             }
+        self._centrality_cache = result
         return result
     
     def find_hubs(self, n_hubs: int = 2) -> List[Dict]:

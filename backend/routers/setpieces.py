@@ -4,7 +4,8 @@ from fastapi import APIRouter, HTTPException
 import sys
 sys.path.append('..')
 from services.data_loader import team_data
-from services.setpiece_analyzer import team_setpieces, SetPieceAnalyzer
+from services.setpiece_analyzer import SetPieceAnalyzer
+from services.analysis_cache import cached_team_setpieces
 
 router = APIRouter()
 
@@ -17,7 +18,7 @@ def setpieces(team_id: int, n_games: int = 5, n_top: int = 2):
         if len(events) == 0:
             raise HTTPException(status_code=404, detail="이벤트 데이터가 없습니다")
         
-        routines = team_setpieces(events, n_top)
+        routines = cached_team_setpieces(team_id, n_games, n_top)
         setpiece_counts = {
             'corners': len(events[events['type_name'] == 'Pass_Corner']),
             'freekicks': len(events[events['type_name'].str.contains('Freekick', na=False)])

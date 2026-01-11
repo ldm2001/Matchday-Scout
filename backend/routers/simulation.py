@@ -7,9 +7,9 @@ import sys
 sys.path.append('..')
 from services.data_loader import team_data, teams_list
 from services.match_simulator import pre_match_simulation
-from services.vaep_calculator import team_vaep
 from services.simulator import simulate_tactics
 from services.chance_analyzer import missed_chances, match_list_results
+from services.analysis_cache import cached_team_vaep
 
 router = APIRouter()
 
@@ -47,7 +47,7 @@ def vaep(team_id: int, n_games: int = 5):
     try:
         events = team_data(team_id, n_games)
         if len(events) == 0: raise HTTPException(status_code=404, detail="팀 데이터 없음")
-        return team_vaep(events, team_id)
+        return cached_team_vaep(team_id, n_games)
     except HTTPException: raise
     except Exception as e: raise HTTPException(status_code=500, detail=str(e))
 

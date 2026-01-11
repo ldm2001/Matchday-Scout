@@ -3,6 +3,7 @@ import pandas as pd
 import numpy as np
 import math
 from typing import Dict, List
+from functools import lru_cache
 from services.data_loader import raw_data, match_info
 
 
@@ -89,6 +90,7 @@ def play_sequence(team_events: pd.DataFrame, end_time: float, period: int, n_eve
              'end_y': safe_float(e.get('end_y', 0))} for _, e in before_shot.iterrows()]
 
 
+@lru_cache(maxsize=256)
 def missed_chances(game_id: int) -> Dict:
     matches = match_info()
     events = raw_data()
@@ -179,6 +181,7 @@ def missed_chances(game_id: int) -> Dict:
     return analysis
 
 
+@lru_cache(maxsize=64)
 def match_list_results(team_id: int = None) -> List[Dict]:
     matches = match_info()
     if team_id:

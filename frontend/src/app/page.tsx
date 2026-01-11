@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import {
   getTeamPatterns,
   getTeamSetpieces,
@@ -12,7 +12,6 @@ import {
   getPhaseReplay,
   matchList,
   matchChances,
-  getTeamAnalysis,
   getNetworkGraph,
   MatchResult,
   ChanceAnalysis,
@@ -20,6 +19,7 @@ import {
   VAEPSummary,
 } from '@/lib/api';
 import { Pattern, SetPieceRoutine, Hub, ReplayEvent } from '@/types';
+import { buildTeamAnalysis } from '@/lib/teamAnalysis';
 import PitchReplay from '@/components/PitchReplay';
 import KeyMomentPitch from '@/components/KeyMomentPitch';
 import SetpiecePitch from '@/components/SetpiecePitch';
@@ -48,6 +48,11 @@ export default function Home() {
   const [activeTab, setActiveTab] = useState<Tab>('overview');
   const [loading, setLoading] = useState(true);
   const [analysisLoading, setAnalysisLoading] = useState(false);
+  const [vaepLoading, setVaepLoading] = useState(false);
+  const [phasesLoading, setPhasesLoading] = useState(false);
+  const [matchesLoading, setMatchesLoading] = useState(false);
+  const [networkGraphLoading, setNetworkGraphLoading] = useState(false);
+  const analysisRequestId = useRef(0);
 
   const [patterns, setPatterns] = useState<Pattern[]>([]);
   const [setpieces, setSetpieces] = useState<SetPieceRoutine[]>([]);
@@ -111,6 +116,67 @@ export default function Home() {
     }
   }, [selectedTeam]);
 
+  useEffect(() => {
+    if (!selectedTeam || analysisLoading) return;
+
+    const requestId = analysisRequestId.current;
+    const teamId = selectedTeam.team_id;
+
+    if (activeTab === 'patterns' && phases.length === 0 && !phasesLoading) {
+      setPhasesLoading(true);
+      getTeamPhases(teamId, 100)
+        .then((data) => {
+          if (analysisRequestId.current !== requestId) return;
+          setPhases(data.phases);
+          setSelectedPhase(null);
+          setReplayEvents([]);
+        })
+        .catch(console.error)
+        .finally(() => {
+          if (analysisRequestId.current !== requestId) return;
+          setPhasesLoading(false);
+        });
+    }
+
+    if (activeTab === 'simulation' && recentMatches.length === 0 && !matchesLoading) {
+      setMatchesLoading(true);
+      matchList(teamId)
+        .then((data) => {
+          if (analysisRequestId.current !== requestId) return;
+          setRecentMatches(data.matches);
+        })
+        .catch(console.error)
+        .finally(() => {
+          if (analysisRequestId.current !== requestId) return;
+          setMatchesLoading(false);
+        });
+    }
+
+    if (activeTab === 'network' && !networkGraph && !networkGraphLoading) {
+      setNetworkGraphLoading(true);
+      getNetworkGraph(teamId, 100)
+        .then((data) => {
+          if (analysisRequestId.current !== requestId) return;
+          setNetworkGraph(data.graph);
+        })
+        .catch(console.error)
+        .finally(() => {
+          if (analysisRequestId.current !== requestId) return;
+          setNetworkGraphLoading(false);
+        });
+    }
+  }, [
+    activeTab,
+    selectedTeam,
+    analysisLoading,
+    phases.length,
+    recentMatches.length,
+    networkGraph,
+    phasesLoading,
+    matchesLoading,
+    networkGraphLoading,
+  ]);
+
   async function loadStandings() {
     try {
       const standingsData = await getTeamsOverview();
@@ -124,39 +190,56 @@ export default function Home() {
 
   async function loadAnalysis() {
     if (!selectedTeam) return;
+    const requestId = ++analysisRequestId.current;
+    const teamId = selectedTeam.team_id;
     setAnalysisLoading(true);
+    setVaepLoading(true);
+    setPatterns([]);
+    setSetpieces([]);
+    setHubs([]);
+    setTeamAnalysis(null);
+    setVaepData(null);
+    setNetworkGraph(null);
+    setPhases([]);
+    setRecentMatches([]);
+    setSelectedPhase(null);
+    setReplayEvents([]);
+    setSetpieceIndex(0);
+    setSelectedMatch(null);
+    setChanceAnalysis(null);
+    setPhasesLoading(false);
+    setMatchesLoading(false);
+    setNetworkGraphLoading(false);
+    const vaepPromise = getTeamVAEP(teamId);
     try {
-      const [p, s, n, ph, matchesData] = await Promise.all([
-        getTeamPatterns(selectedTeam.team_id, 100, 5),  // 전체 경기
-        getTeamSetpieces(selectedTeam.team_id, 100),    // 전체 경기
-        getTeamNetwork(selectedTeam.team_id, 100, 3),   // 전체 경기
-        getTeamPhases(selectedTeam.team_id, 100),       // 전체 경기
-        matchList(selectedTeam.team_id),
+      const [p, s, n] = await Promise.all([
+        getTeamPatterns(teamId, 100, 5),  // 전체 경기
+        getTeamSetpieces(teamId, 100, 4), // 전체 경기
+        getTeamNetwork(teamId, 100, 3),   // 전체 경기
       ]);
+      if (analysisRequestId.current !== requestId) return;
       setPatterns(p.patterns);
       setSetpieces(s.routines);
       setHubs(n.hubs);
-      setPhases(ph.phases);
-      setSelectedPhase(null);
-      setReplayEvents([]);
-      setRecentMatches(matchesData.matches);
-      setChanceAnalysis(null);
-
-      // 팀 분석 로드 (비동기)
-      getTeamAnalysis(selectedTeam.team_id).then(setTeamAnalysis).catch(console.error);
-
-      // 네트워크 그래프 로드 (비동기)
-      getNetworkGraph(selectedTeam.team_id, 100).then(data => {
-        setNetworkGraph(data.graph);
-      }).catch(console.error);
-
-      // VAEP 분석 로드 (비동기)
-      getTeamVAEP(selectedTeam.team_id).then(setVaepData).catch(console.error);
+      setTeamAnalysis(buildTeamAnalysis(teamId, p.patterns, s.routines, n.hubs));
     } catch (err) {
       console.error('Failed to load analysis:', err);
     } finally {
-      setAnalysisLoading(false);
+      if (analysisRequestId.current === requestId) {
+        setAnalysisLoading(false);
+      }
     }
+
+    vaepPromise
+      .then((data) => {
+        if (analysisRequestId.current !== requestId) return;
+        setVaepData(data);
+      })
+      .catch(console.error)
+      .finally(() => {
+        if (analysisRequestId.current !== requestId) return;
+        setVaepLoading(false);
+      });
   }
 
   async function loadPhaseReplay(phaseId: number) {
@@ -164,7 +247,7 @@ export default function Home() {
     setReplayLoading(true);
     setIsPlaying(false);
     try {
-      const data = await getPhaseReplay(selectedTeam.team_id, phaseId, 5);
+      const data = await getPhaseReplay(selectedTeam.team_id, phaseId, 100);
       setReplayEvents(data.events);
       setSelectedPhase(phaseId);
     } catch (err) {
@@ -439,7 +522,7 @@ export default function Home() {
                 )}
 
                 {/* 팀 AI 분석 */}
-                {teamAnalysis && (
+                {teamAnalysis ? (
                   <div className="card" style={{ marginTop: 16, border: '1px solid #bfdbfe', background: 'linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%)' }}>
                     <div className="card-title" style={{ color: '#1e40af', display: 'flex', alignItems: 'center', gap: 8 }}>
                       <span style={{ fontSize: 18 }}>🤖</span>
@@ -516,10 +599,21 @@ export default function Home() {
                       </div>
                     )}
                   </div>
+                ) : (
+                  <div className="card" style={{ marginTop: 16, border: '1px solid #bfdbfe', background: 'linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%)' }}>
+                    <div className="card-title" style={{ color: '#1e40af', display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <span style={{ fontSize: 18 }}>🤖</span>
+                      AI 팀 분석
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 12, color: '#1e40af', fontSize: 13 }}>
+                      <div className="spinner" />
+                      <span>분석 결과를 준비 중입니다...</span>
+                    </div>
+                  </div>
                 )}
 
                 {/* VAEP 선수 공헌도 랭킹 */}
-                {vaepData && (
+                {vaepData ? (
                   <div className="card" style={{ marginTop: 16, border: '1px solid #a5b4fc', background: 'linear-gradient(135deg, #eef2ff 0%, #e0e7ff 100%)' }}>
                     <div className="card-title" style={{ color: '#4338ca', display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
                       <span style={{ fontSize: 18 }}>📊</span>
@@ -620,6 +714,21 @@ export default function Home() {
                       </div>
                     </div>
                   </div>
+                ) : (
+                  <div className="card" style={{ marginTop: 16, border: '1px solid #a5b4fc', background: 'linear-gradient(135deg, #eef2ff 0%, #e0e7ff 100%)' }}>
+                    <div className="card-title" style={{ color: '#4338ca', display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+                      <span style={{ fontSize: 18 }}>📊</span>
+                      선수 공헌도 (VAEP)
+                    </div>
+                    {vaepLoading ? (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 12, color: '#4338ca', fontSize: 13 }}>
+                        <div className="spinner" />
+                        <span>VAEP 분석 중...</span>
+                      </div>
+                    ) : (
+                      <p style={{ fontSize: 12, color: '#64748b' }}>VAEP 데이터가 없습니다.</p>
+                    )}
+                  </div>
                 )}
               </div>
             )}
@@ -638,36 +747,47 @@ export default function Home() {
                       공격 Phase 선택:
                     </p>
                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
-                      {phases.slice(0, 10).map((ph, idx) => (
-                        <button
-                          key={ph.phase_id}
-                          onClick={() => loadPhaseReplay(ph.phase_id)}
-                          style={{
-                            padding: '12px 20px',
-                            background: selectedPhase === ph.phase_id
-                              ? 'linear-gradient(135deg, #3b82f6, #2563eb)'
-                              : 'rgba(30, 41, 59, 0.8)',
-                            border: selectedPhase === ph.phase_id
-                              ? '2px solid #60a5fa'
-                              : '1px solid #374151',
-                            borderRadius: 10,
-                            cursor: 'pointer',
-                            color: selectedPhase === ph.phase_id ? 'white' : '#cbd5e1',
-                            fontWeight: selectedPhase === ph.phase_id ? 600 : 400,
-                            boxShadow: selectedPhase === ph.phase_id
-                              ? '0 4px 12px rgba(59, 130, 246, 0.4)'
-                              : 'none',
-                            transition: 'all 0.2s ease',
-                          }}
-                        >
-                          <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 4 }}>
-                            Phase {idx + 1} ⚽
-                          </div>
-                          <div style={{ fontSize: 12, opacity: 0.9 }}>
-                            패스 {ph.passes}회 · {Math.round(ph.duration)}초
-                          </div>
-                        </button>
-                      ))}
+                      {phasesLoading ? (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 12, color: '#60a5fa', fontSize: 13, padding: '8px 4px', width: '100%' }}>
+                          <div className="spinner" />
+                          <span>Phase 분석 중...</span>
+                        </div>
+                      ) : phases.length > 0 ? (
+                        phases.slice(0, 10).map((ph, idx) => (
+                          <button
+                            key={ph.phase_id}
+                            onClick={() => loadPhaseReplay(ph.phase_id)}
+                            style={{
+                              padding: '12px 20px',
+                              background: selectedPhase === ph.phase_id
+                                ? 'linear-gradient(135deg, #3b82f6, #2563eb)'
+                                : 'rgba(30, 41, 59, 0.8)',
+                              border: selectedPhase === ph.phase_id
+                                ? '2px solid #60a5fa'
+                                : '1px solid #374151',
+                              borderRadius: 10,
+                              cursor: 'pointer',
+                              color: selectedPhase === ph.phase_id ? 'white' : '#cbd5e1',
+                              fontWeight: selectedPhase === ph.phase_id ? 600 : 400,
+                              boxShadow: selectedPhase === ph.phase_id
+                                ? '0 4px 12px rgba(59, 130, 246, 0.4)'
+                                : 'none',
+                              transition: 'all 0.2s ease',
+                            }}
+                          >
+                            <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 4 }}>
+                              Phase {idx + 1} ⚽
+                            </div>
+                            <div style={{ fontSize: 12, opacity: 0.9 }}>
+                              패스 {ph.passes}회 · {Math.round(ph.duration)}초
+                            </div>
+                          </button>
+                        ))
+                      ) : (
+                        <div style={{ color: '#94a3b8', fontSize: 13, padding: '8px 4px' }}>
+                          Phase 데이터가 없습니다.
+                        </div>
+                      )}
                     </div>
                   </div>
 
@@ -871,6 +991,12 @@ export default function Home() {
             {activeTab === 'network' && (
               <div style={{ maxHeight: 'calc(100vh - 200px)', overflowY: 'auto', paddingRight: 8 }}>
                 {/* 패스 네트워크 시각화 */}
+                {networkGraphLoading && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 12, color: '#60a5fa', fontSize: 13, padding: '12px 0' }}>
+                    <div className="spinner" />
+                    <span>네트워크 그래프 로딩 중...</span>
+                  </div>
+                )}
                 {networkGraph && (
                   <div style={{ marginBottom: 20 }}>
                     <PassNetwork
@@ -925,60 +1051,67 @@ export default function Home() {
                     </div>
 
                     <div style={{ display: 'grid', gap: 12, maxHeight: 'calc(100vh - 280px)', overflowY: 'auto', paddingRight: 8 }}>
-                      {recentMatches
-                        .filter((match) => {
-                          if (!selectedTeam) return true;
-                          const teamId = selectedTeam.team_id;
-                          const isHomeTeam = match.home_team_id === teamId;
-                          const isAwayTeam = match.away_team_id === teamId;
-                          if (match.result === 'draw') return true;
-                          if (isHomeTeam && match.result === 'home_win') return false;
-                          if (isAwayTeam && match.result === 'away_win') return false;
-                          return true;
-                        })
-                        .map((match) => {
-                          const isDraw = match.result === 'draw';
-                          return (
-                            <button
-                              key={match.game_id}
-                              onClick={() => loadChanceAnalysis(match.game_id)}
-                              style={{
-                                display: 'flex',
-                                justifyContent: 'space-between',
-                                alignItems: 'center',
-                                padding: '20px 24px',
-                                background: 'white',
-                                border: '1px solid #e2e8f0',
-                                borderLeft: `6px solid ${isDraw ? '#f59e0b' : '#ef4444'}`,
-                                borderRadius: 12,
-                                cursor: 'pointer',
-                                textAlign: 'left',
-                                transition: 'all 0.2s ease',
-                                boxShadow: '0 2px 4px rgba(0,0,0,0.02)'
-                              }}
-                              onMouseOver={(e) => e.currentTarget.style.transform = 'translateY(-2px)'}
-                              onMouseOut={(e) => e.currentTarget.style.transform = 'translateY(0)'}
-                            >
-                              <div>
-                                <div style={{ fontSize: 13, color: '#94a3b8', marginBottom: 4 }}>{match.date}</div>
-                                <div style={{ fontSize: 18, fontWeight: 700, color: '#1e293b' }}>
-                                  {match.home_team} <span style={{ color: '#cbd5e1', margin: '0 8px' }}>vs</span> {match.away_team}
+                      {matchesLoading && recentMatches.length === 0 ? (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 12, color: '#64748b', fontSize: 13, padding: '12px 4px' }}>
+                          <div className="spinner" />
+                          <span>경기 목록 로딩 중...</span>
+                        </div>
+                      ) : (
+                        recentMatches
+                          .filter((match) => {
+                            if (!selectedTeam) return true;
+                            const teamId = selectedTeam.team_id;
+                            const isHomeTeam = match.home_team_id === teamId;
+                            const isAwayTeam = match.away_team_id === teamId;
+                            if (match.result === 'draw') return true;
+                            if (isHomeTeam && match.result === 'home_win') return false;
+                            if (isAwayTeam && match.result === 'away_win') return false;
+                            return true;
+                          })
+                          .map((match) => {
+                            const isDraw = match.result === 'draw';
+                            return (
+                              <button
+                                key={match.game_id}
+                                onClick={() => loadChanceAnalysis(match.game_id)}
+                                style={{
+                                  display: 'flex',
+                                  justifyContent: 'space-between',
+                                  alignItems: 'center',
+                                  padding: '20px 24px',
+                                  background: 'white',
+                                  border: '1px solid #e2e8f0',
+                                  borderLeft: `6px solid ${isDraw ? '#f59e0b' : '#ef4444'}`,
+                                  borderRadius: 12,
+                                  cursor: 'pointer',
+                                  textAlign: 'left',
+                                  transition: 'all 0.2s ease',
+                                  boxShadow: '0 2px 4px rgba(0,0,0,0.02)'
+                                }}
+                                onMouseOver={(e) => e.currentTarget.style.transform = 'translateY(-2px)'}
+                                onMouseOut={(e) => e.currentTarget.style.transform = 'translateY(0)'}
+                              >
+                                <div>
+                                  <div style={{ fontSize: 13, color: '#94a3b8', marginBottom: 4 }}>{match.date}</div>
+                                  <div style={{ fontSize: 18, fontWeight: 700, color: '#1e293b' }}>
+                                    {match.home_team} <span style={{ color: '#cbd5e1', margin: '0 8px' }}>vs</span> {match.away_team}
+                                  </div>
                                 </div>
-                              </div>
-                              <div style={{ textAlign: 'right' }}>
-                                <div style={{ fontSize: 24, fontWeight: 800, color: '#1e293b', letterSpacing: '-1px' }}>
-                                  {match.score}
+                                <div style={{ textAlign: 'right' }}>
+                                  <div style={{ fontSize: 24, fontWeight: 800, color: '#1e293b', letterSpacing: '-1px' }}>
+                                    {match.score}
+                                  </div>
+                                  <div style={{
+                                    fontSize: 12, fontWeight: 600,
+                                    color: isDraw ? '#d97706' : '#dc2626'
+                                  }}>
+                                    {match.result_text}
+                                  </div>
                                 </div>
-                                <div style={{
-                                  fontSize: 12, fontWeight: 600,
-                                  color: isDraw ? '#d97706' : '#dc2626'
-                                }}>
-                                  {match.result_text}
-                                </div>
-                              </div>
-                            </button>
-                          );
-                        })}
+                              </button>
+                            );
+                          })
+                      )}
                     </div>
                   </div>
                 )}

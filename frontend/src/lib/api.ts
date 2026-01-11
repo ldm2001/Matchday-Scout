@@ -134,13 +134,13 @@ export async function getPhaseReplay(teamId: number, phaseId: number, nGames: nu
 }
 
 // Set-pieces API
-export async function getTeamSetpieces(teamId: number, nGames: number = 5) {
+export async function getTeamSetpieces(teamId: number, nGames: number = 5, nTop: number = 2) {
     return fetchAPI<{
         team_id: number;
         n_games_analyzed: number;
         setpiece_counts: { corners: number; freekicks: number };
         routines: import('@/types').SetPieceRoutine[];
-    }>(`/api/setpieces/${teamId}?n_games=${nGames}`);
+    }>(`/api/setpieces/${teamId}?n_games=${nGames}&n_top=${nTop}`);
 }
 
 // Network API
@@ -323,4 +323,3 @@ export async function matchList(teamId?: number) {
 export async function matchChances(gameId: number) {
     return fetchAPI<ChanceAnalysis>(`/api/simulation/matches/${gameId}/chances`);
 }
-

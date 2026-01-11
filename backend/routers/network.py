@@ -4,7 +4,8 @@ from fastapi import APIRouter, HTTPException
 import sys
 sys.path.append('..')
 from services.data_loader import team_data
-from services.network_analyzer import team_network, NetworkAnalyzer
+from services.network_analyzer import NetworkAnalyzer
+from services.analysis_cache import cached_team_network, cached_network_graph
 
 router = APIRouter()
 
@@ -17,7 +18,7 @@ def network(team_id: int, n_games: int = 5, n_hubs: int = 2):
         if len(events) == 0:
             raise HTTPException(status_code=404, detail="이벤트 데이터가 없습니다")
         
-        result = team_network(events, n_hubs)
+        result = cached_team_network(team_id, n_games, n_hubs)
         return {
             'team_id': team_id, 'n_games_analyzed': n_games, 'hubs': result['hubs'],
             'network_stats': {'nodes': len(result['network']['nodes']), 'edges': len(result['network']['edges'])}
@@ -36,9 +37,7 @@ def graph(team_id: int, n_games: int = 5):
         if len(events) == 0:
             raise HTTPException(status_code=404, detail="이벤트 데이터가 없습니다")
         
-        analyzer = NetworkAnalyzer(events)
-        analyzer.pass_network()
-        data = analyzer.network_data()
+        data = cached_network_graph(team_id, n_games)
         
         return {'team_id': team_id, 'n_games_analyzed': n_games, 'graph': data}
     except HTTPException:
