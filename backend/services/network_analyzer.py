@@ -32,7 +32,7 @@ class NetworkAnalyzer:
         self.graph = None
         self.player_stats = {}
         self._centrality_cache = None
-        
+
     def pass_network(self) -> nx.DiGraph:
         self._centrality_cache = None
         self.graph = nx.DiGraph()
@@ -102,6 +102,7 @@ class NetworkAnalyzer:
                 'passes_made': safe_int(out_degree.get(node, 0)),
                 'hub_score': round(safe_float(hub_score), 4)
             }
+        self._centrality_cache = result
         self._centrality_cache = result
         return result
     

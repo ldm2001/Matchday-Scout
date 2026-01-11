@@ -1,8 +1,33 @@
 // API 클라이언트
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+// 브라우저 환경에서는 항상 상대 경로 사용 (Nginx가 /api로 프록시)
+// 서버 사이드 렌더링 시에만 환경 변수 또는 localhost 사용
+const getApiBase = (): string => {
+    // 브라우저 환경: 항상 상대 경로 사용
+    // Nginx가 /api 경로를 백엔드로 프록시하므로 상대 경로가 올바름
+    if (typeof window !== 'undefined') {
+        // 브라우저에서는 무조건 상대 경로 사용
+        // 환경 변수는 완전히 무시 (빌드 타임 환경 변수 문제 방지)
+        return '';
+    }
+
+    // 서버 사이드 렌더링(SSR) 시에만 환경 변수 또는 localhost 사용
+    // Next.js의 서버 컴포넌트나 getServerSideProps 등에서 사용될 때
+    return process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+};
 
 async function fetchAPI<T>(endpoint: string): Promise<T> {
+    // 매번 호출 시점에 API_BASE를 계산 (런타임에 결정)
+    const API_BASE = getApiBase();
+    
+    // 디버깅: 프로덕션에서 문제 확인용 (나중에 제거 가능)
+    if (typeof window !== 'undefined' && process.env.NODE_ENV === 'production') {
+      const fullUrl = `${API_BASE}${endpoint}`;
+      if (fullUrl.includes('localhost') || fullUrl.startsWith('http://') || fullUrl.startsWith('https://')) {
+        console.warn('[API] 잘못된 API 경로 감지:', fullUrl, '→ 상대 경로로 변경해야 함');
+      }
+    }
+    
     const res = await fetch(`${API_BASE}${endpoint}`);
     if (!res.ok) {
         throw new Error(`API Error: ${res.status}`);
@@ -141,6 +166,7 @@ export async function getTeamSetpieces(teamId: number, nGames: number = 5, nTop:
         setpiece_counts: { corners: number; freekicks: number };
         routines: import('@/types').SetPieceRoutine[];
     }>(`/api/setpieces/${teamId}?n_games=${nGames}&n_top=${nTop}`);
+    }>(`/api/setpieces/${teamId}?n_games=${nGames}&n_top=${nTop}`);
 }
 
 // Network API
@@ -191,6 +217,8 @@ export async function getFullTacticalAnalysis(teamId: number, nGames: number = 5
 
 // Pre-match Simulation
 async function postAPI<T>(endpoint: string, data: object): Promise<T> {
+    // 매번 호출 시점에 API_BASE를 계산 (런타임에 결정)
+    const API_BASE = getApiBase();
     const res = await fetch(`${API_BASE}${endpoint}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },

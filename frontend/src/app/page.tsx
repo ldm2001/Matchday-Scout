@@ -176,7 +176,6 @@ export default function Home() {
     matchesLoading,
     networkGraphLoading,
   ]);
-
   async function loadStandings() {
     try {
       const standingsData = await getTeamsOverview();

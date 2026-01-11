@@ -44,6 +44,7 @@ def patterns(team_id: int, n_games: int = 5, n_patterns: int = 3):
             raise HTTPException(status_code=404, detail="이벤트 데이터가 없습니다")
         
         result = cached_team_patterns(team_id, n_games, n_patterns)
+        result = cached_team_patterns(team_id, n_games, n_patterns)
         return {'team_id': team_id, 'n_games_analyzed': n_games, 'total_events': len(events), 'patterns': result}
     except HTTPException: raise
     except Exception as e: raise HTTPException(status_code=500, detail=str(e))
@@ -128,6 +129,13 @@ def team_analysis(team_id: int, n_games: int = 100):
         patterns_result = patterns_future.result()
         setpieces_result = setpieces_future.result()
         hubs_result = network_future.result()
+        patterns_future = _executor.submit(cached_team_patterns, team_id, n_games, 5)
+        setpieces_future = _executor.submit(cached_team_setpieces, team_id, n_games, 4)
+        network_future = _executor.submit(cached_team_network, team_id, n_games, 3)
+
+        patterns_result = patterns_future.result()
+        setpieces_result = setpieces_future.result()
+        hubs_result = network_future.result()
         hubs = hubs_result.get('hubs', []) if isinstance(hubs_result, dict) else hubs_result
         
         return team_strengths(team_id, patterns_result, setpieces_result, hubs)
@@ -143,6 +151,7 @@ def team_vaep(team_id: int, n_games: int = 100, n_top: int = 10):
         if len(events) == 0:
             raise HTTPException(status_code=404, detail="이벤트 데이터가 없습니다")
         
+        return {'team_id': team_id, 'n_games_analyzed': n_games, **cached_team_vaep_summary(team_id, n_games, n_top)}
         return {'team_id': team_id, 'n_games_analyzed': n_games, **cached_team_vaep_summary(team_id, n_games, n_top)}
     except HTTPException: raise
     except Exception as e: raise HTTPException(status_code=500, detail=str(e))

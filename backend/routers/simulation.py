@@ -48,6 +48,7 @@ def vaep(team_id: int, n_games: int = 5):
         events = team_data(team_id, n_games)
         if len(events) == 0: raise HTTPException(status_code=404, detail="팀 데이터 없음")
         return cached_team_vaep(team_id, n_games)
+        return cached_team_vaep(team_id, n_games)
     except HTTPException: raise
     except Exception as e: raise HTTPException(status_code=500, detail=str(e))
 
