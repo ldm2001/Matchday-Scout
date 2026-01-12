@@ -152,7 +152,7 @@ export default function Home() {
         });
     }
 
-    if (activeTab === 'network' && !networkGraph && !networkGraphLoading) {
+    if (!networkGraph && !networkGraphLoading) {
       setNetworkGraphLoading(true);
       getNetworkGraph(teamId, 100)
         .then((data) => {
@@ -209,36 +209,33 @@ export default function Home() {
     setPhasesLoading(false);
     setMatchesLoading(false);
     setNetworkGraphLoading(false);
-    const vaepPromise = getTeamVAEP(teamId);
+    const vaepPromise = getTeamVAEP(teamId).catch((err) => {
+      console.error('VAEP failed:', err);
+      return null;
+    });
     try {
-      const [p, s, n] = await Promise.all([
+      const [p, s, n, vaep] = await Promise.all([
         getTeamPatterns(teamId, 100, 5),  // 전체 경기
         getTeamSetpieces(teamId, 100, 4), // 전체 경기
         getTeamNetwork(teamId, 100, 3),   // 전체 경기
+        vaepPromise,
       ]);
       if (analysisRequestId.current !== requestId) return;
       setPatterns(p.patterns);
       setSetpieces(s.routines);
       setHubs(n.hubs);
       setTeamAnalysis(buildTeamAnalysis(teamId, p.patterns, s.routines, n.hubs));
+      if (vaep) {
+        setVaepData(vaep);
+      }
     } catch (err) {
       console.error('Failed to load analysis:', err);
     } finally {
       if (analysisRequestId.current === requestId) {
         setAnalysisLoading(false);
+        setVaepLoading(false);
       }
     }
-
-    vaepPromise
-      .then((data) => {
-        if (analysisRequestId.current !== requestId) return;
-        setVaepData(data);
-      })
-      .catch(console.error)
-      .finally(() => {
-        if (analysisRequestId.current !== requestId) return;
-        setVaepLoading(false);
-      });
   }
 
   async function loadPhaseReplay(phaseId: number) {

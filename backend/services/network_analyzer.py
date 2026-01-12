@@ -49,25 +49,33 @@ class NetworkAnalyzer:
                     position=str(first_row.get('position_name', 'Unknown')),
                     main_position=str(first_row.get('main_position', 'Unknown')))
         
-        pass_counts = Counter()
-        for game_id in passes['game_id'].unique():
-            game_passes = passes[passes['game_id'] == game_id].sort_values('action_id')
-            game_received = pass_received[pass_received['game_id'] == game_id].sort_values('action_id')
-            
-            for _, pass_event in game_passes.iterrows():
-                passer_id = pass_event['player_id']
-                if pd.isna(passer_id): continue
-                next_received = game_received[game_received['action_id'] > pass_event['action_id']]
-                if len(next_received) > 0:
-                    receiver_event = next_received.iloc[0]
-                    if receiver_event['team_id'] == pass_event['team_id']:
-                        receiver_id = receiver_event['player_id']
-                        if not pd.isna(receiver_id) and passer_id != receiver_id:
-                            pass_counts[(safe_int(passer_id), safe_int(receiver_id))] += 1
-        
+        if passes.empty or pass_received.empty:
+            return self.graph
+
+        pass_cols = ['game_id', 'team_id', 'action_id', 'player_id']
+        recv_cols = ['game_id', 'team_id', 'action_id', 'player_id']
+
+        passes_sorted = passes[pass_cols].sort_values(['game_id', 'team_id', 'action_id'])
+        received_sorted = pass_received[recv_cols].sort_values(['game_id', 'team_id', 'action_id'])
+
+        merged = pd.merge_asof(
+            passes_sorted,
+            received_sorted,
+            on='action_id',
+            by=['game_id', 'team_id'],
+            direction='forward',
+            allow_exact_matches=False,
+            suffixes=('_pass', '_recv'),
+        )
+        merged = merged.dropna(subset=['player_id_pass', 'player_id_recv'])
+        merged = merged[merged['player_id_pass'] != merged['player_id_recv']]
+
+        pass_counts = merged.groupby(['player_id_pass', 'player_id_recv']).size()
         for (passer, receiver), count in pass_counts.items():
-            if passer in self.graph.nodes and receiver in self.graph.nodes:
-                self.graph.add_edge(passer, receiver, weight=count)
+            passer_id = safe_int(passer)
+            receiver_id = safe_int(receiver)
+            if passer_id in self.graph.nodes and receiver_id in self.graph.nodes:
+                self.graph.add_edge(passer_id, receiver_id, weight=int(count))
         
         return self.graph
     

@@ -46,6 +46,9 @@ RESULT_MODIFIERS = {
     'Saved': 0.4, 'Goal': 2.0, 'Own Goal': -1.0,
 }
 
+OFFENSIVE_TYPES = {'Shot', 'Goal', 'Dribble', 'Shot_Freekick'}
+DEFENSIVE_TYPES = {'Tackle', 'Interception', 'Clearance', 'Block'}
+PASS_ADVANCE_TYPES = {'Pass', 'Pass_Cross', 'Carry'}
 
 # 개별 액션 가치 계산
 def action_value(event: pd.Series) -> float:
@@ -68,46 +71,107 @@ def action_value(event: pd.Series) -> float:
     return round(pos_val * act_val * result_mod, 4)
 
 
+def _numeric_series(events_df: pd.DataFrame, column: str, default: float) -> pd.Series:
+    series = events_df.get(column)
+    if series is None:
+        return pd.Series([default] * len(events_df), index=events_df.index, dtype='float64')
+    return pd.to_numeric(series, errors='coerce').fillna(default)
+
+
+def _string_series(events_df: pd.DataFrame, column: str, default: str) -> pd.Series:
+    series = events_df.get(column)
+    if series is None:
+        return pd.Series([default] * len(events_df), index=events_df.index, dtype='object')
+    return series.fillna(default).astype(str)
+
+
+def _action_values(events_df: pd.DataFrame) -> np.ndarray:
+    x = _numeric_series(events_df, 'start_x', 50.0).to_numpy()
+    y = _numeric_series(events_df, 'start_y', 34.0).to_numpy()
+
+    x_value = (x / 105) ** 1.5
+    y_value = 1 - (np.abs(y - 34) / 34 * 0.3)
+
+    box_bonus = np.zeros_like(x_value)
+    box_mask = (x >= 88.5) & (y >= 13.84) & (y <= 54.16)
+    box_bonus[box_mask] = 0.3
+    box_mask_strict = (x >= 99.5) & (y >= 24.84) & (y <= 43.16)
+    box_bonus[box_mask_strict] = 0.5
+
+    pos_val = np.minimum(1.0, x_value * y_value + box_bonus)
+
+    action_type = _string_series(events_df, 'type_name', 'nan')
+    act_val = action_type.map(ACTION_VALUES).fillna(0.01).to_numpy(dtype='float64')
+
+    result_name = _string_series(events_df, 'result_name', 'nan')
+    result_mod = result_name.map(RESULT_MODIFIERS).fillna(0.7).to_numpy(dtype='float64')
+
+    end_x = _numeric_series(events_df, 'end_x', np.nan)
+    end_x = end_x.fillna(pd.Series(x, index=events_df.index)).to_numpy()
+    advancement = (end_x - x) / 105
+    pass_mask = action_type.isin(PASS_ADVANCE_TYPES).to_numpy()
+    act_val = act_val * np.where(pass_mask & (advancement > 0), 1 + advancement * 0.5, 1.0)
+
+    shot_mask = (action_type == 'Shot').to_numpy()
+    distance = np.sqrt((x - 105) ** 2 + (y - 34) ** 2)
+    shot_factor = np.maximum(0.1, 1 - (distance / 50))
+    act_val = act_val * np.where(shot_mask, shot_factor, 1.0)
+
+    return np.round(pos_val * act_val * result_mod, 4)
+
+
 # 팀 선수별 VAEP 분석
 def player_vaep(events_df: pd.DataFrame) -> List[Dict]:
-    player_stats = {}
-    
-    for _, event in events_df.iterrows():
-        player_id = event.get('player_id')
-        if pd.isna(player_id): continue
-        
-        player_id = int(player_id)
-        if player_id not in player_stats:
-            player_stats[player_id] = {
-                'player_id': player_id,
-                'player_name': str(event.get('player_name_ko', str(player_id))),
-                'position': str(event.get('position_name', 'Unknown')),
-                'total_vaep': 0.0, 'actions': 0,
-                'offensive_vaep': 0.0, 'defensive_vaep': 0.0, 'passing_vaep': 0.0,
-            }
-        
-        value = action_value(event)
-        player_stats[player_id]['total_vaep'] += value
-        player_stats[player_id]['actions'] += 1
-        
-        action_type = str(event.get('type_name', ''))
-        if action_type in ['Shot', 'Goal', 'Dribble', 'Shot_Freekick']:
-            player_stats[player_id]['offensive_vaep'] += value
-        elif action_type in ['Tackle', 'Interception', 'Clearance', 'Block']:
-            player_stats[player_id]['defensive_vaep'] += value
-        elif 'Pass' in action_type:
-            player_stats[player_id]['passing_vaep'] += value
-    
-    result = list(player_stats.values())
-    for p in result:
-        p['avg_vaep'] = round(p['total_vaep'] / max(p['actions'], 1), 4)
-        p['total_vaep'] = round(p['total_vaep'], 2)
-        p['offensive_vaep'] = round(p['offensive_vaep'], 2)
-        p['defensive_vaep'] = round(p['defensive_vaep'], 2)
-        p['passing_vaep'] = round(p['passing_vaep'], 2)
-    
-    result.sort(key=lambda x: x['total_vaep'], reverse=True)
-    return result
+    if events_df is None or len(events_df) == 0:
+        return []
+
+    player_series = events_df.get('player_id')
+    if player_series is None:
+        return []
+
+    valid_mask = player_series.notna()
+    if not valid_mask.any():
+        return []
+
+    cols = ['player_id', 'player_name_ko', 'position_name', 'type_name', 'result_name',
+            'start_x', 'start_y', 'end_x', 'end_y']
+    data = events_df.loc[valid_mask, cols].copy()
+    data['value'] = _action_values(data)
+
+    action_type = _string_series(data, 'type_name', 'nan')
+    offensive_mask = action_type.isin(OFFENSIVE_TYPES)
+    defensive_mask = action_type.isin(DEFENSIVE_TYPES)
+    passing_mask = action_type.str.contains('Pass', na=False) & ~offensive_mask & ~defensive_mask
+
+    grouped = data.groupby('player_id', sort=False)
+    totals = grouped['value'].sum()
+    actions = grouped['value'].size().astype(int)
+    names = grouped['player_name_ko'].first().fillna('')
+    positions = grouped['position_name'].first().fillna('Unknown')
+
+    offensive = data.loc[offensive_mask].groupby('player_id')['value'].sum()
+    defensive = data.loc[defensive_mask].groupby('player_id')['value'].sum()
+    passing = data.loc[passing_mask].groupby('player_id')['value'].sum()
+
+    summary = pd.DataFrame({
+        'player_id': totals.index.astype(int),
+        'player_name': names.reindex(totals.index).astype(str).values,
+        'position': positions.reindex(totals.index).astype(str).values,
+        'total_vaep': totals.values,
+        'actions': actions.reindex(totals.index).fillna(0).astype(int).values,
+        'offensive_vaep': offensive.reindex(totals.index).fillna(0).values,
+        'defensive_vaep': defensive.reindex(totals.index).fillna(0).values,
+        'passing_vaep': passing.reindex(totals.index).fillna(0).values,
+    })
+
+    summary['avg_vaep'] = (summary['total_vaep'] / summary['actions'].clip(lower=1)).round(4)
+    summary['total_vaep'] = summary['total_vaep'].round(2)
+    summary['offensive_vaep'] = summary['offensive_vaep'].round(2)
+    summary['defensive_vaep'] = summary['defensive_vaep'].round(2)
+    summary['passing_vaep'] = summary['passing_vaep'].round(2)
+
+    summary = summary.sort_values('total_vaep', ascending=False)
+    return summary.to_dict('records')
 
 
 # 팀 VAEP 요약 (API용)

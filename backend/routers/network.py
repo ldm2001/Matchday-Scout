@@ -5,7 +5,7 @@ import sys
 sys.path.append('..')
 from services.data_loader import team_data
 from services.network_analyzer import NetworkAnalyzer
-from services.analysis_cache import cached_team_network, cached_network_graph
+from services.analysis_cache import cached_team_network
 
 router = APIRouter()
 
@@ -37,7 +37,8 @@ def graph(team_id: int, n_games: int = 5):
         if len(events) == 0:
             raise HTTPException(status_code=404, detail="이벤트 데이터가 없습니다")
         
-        data = cached_network_graph(team_id, n_games)
+        result = cached_team_network(team_id, n_games, 3)
+        data = result.get('network', {'nodes': [], 'edges': []})
         
         return {'team_id': team_id, 'n_games_analyzed': n_games, 'graph': data}
     except HTTPException:
