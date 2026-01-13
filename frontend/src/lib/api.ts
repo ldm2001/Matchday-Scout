@@ -166,7 +166,6 @@ export async function getTeamSetpieces(teamId: number, nGames: number = 5, nTop:
         setpiece_counts: { corners: number; freekicks: number };
         routines: import('@/types').SetPieceRoutine[];
     }>(`/api/setpieces/${teamId}?n_games=${nGames}&n_top=${nTop}`);
-    }>(`/api/setpieces/${teamId}?n_games=${nGames}&n_top=${nTop}`);
 }
 
 // Network API
