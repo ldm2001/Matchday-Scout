@@ -1172,24 +1172,86 @@ sudo systemctl daemon-reload
 sudo systemctl restart matchday-frontend
 ```
 
-### 백엔드가 시작되지 않는 경우
+### 백엔드가 시작되지 않는 경우 (502 오류)
 
-1. 로그 확인:
+#### 빠른 진단 및 자동 해결 (권장)
+
+**백엔드 전용 진단 스크립트 사용:**
+
 ```bash
-sudo journalctl -u matchday-backend -n 50
+cd ~/Matchday-Scout
+chmod +x scripts/fix-backend-502.sh
+./scripts/fix-backend-502.sh
 ```
 
-2. 가상환경 및 의존성 확인:
+이 스크립트는 다음을 자동으로 확인하고 해결합니다:
+- 백엔드 서비스 실행 상태 확인 및 자동 시작
+- 포트 8000 리스닝 확인
+- 백엔드 로그 확인
+- 가상환경 및 Python 확인
+- FastAPI, uvicorn 설치 확인
+- 서비스 파일 확인
+
+#### 수동 해결 방법
+
+1. **로그 확인:**
+```bash
+sudo journalctl -u matchday-backend -n 50 --no-pager
+```
+
+2. **가상환경 및 의존성 확인:**
 ```bash
 cd ~/Matchday-Scout/backend
 source venv/bin/activate
 python -c "import fastapi; print('OK')"
+python -c "import uvicorn; print('OK')"
 ```
 
-3. 포트 사용 확인:
+3. **포트 사용 확인:**
 ```bash
+sudo ss -tlnp | grep 8000
+# 또는
 sudo netstat -tlnp | grep 8000
 ```
+
+4. **백엔드 직접 연결 테스트:**
+```bash
+curl http://localhost:8000/health
+```
+
+5. **서비스 재시작:**
+```bash
+sudo systemctl restart matchday-backend
+sleep 3
+sudo systemctl status matchday-backend
+```
+
+6. **가상환경 재설정 (필요한 경우):**
+```bash
+cd ~/Matchday-Scout/backend
+
+# 가상환경이 없다면 생성
+python3 -m venv venv
+
+# 가상환경 활성화
+source venv/bin/activate
+
+# 의존성 재설치
+pip install --upgrade pip setuptools wheel
+pip install -r requirements.txt
+
+# 서비스 재시작
+sudo systemctl restart matchday-backend
+```
+
+7. **수동으로 백엔드 실행 테스트:**
+```bash
+cd ~/Matchday-Scout/backend
+source venv/bin/activate
+uvicorn main:app --host 127.0.0.1 --port 8000
+```
+
+수동 실행이 되면 서비스 파일의 경로나 환경변수 문제일 수 있습니다.
 
 ### 프론트엔드가 시작되지 않는 경우
 
