@@ -14,7 +14,7 @@ class SetPieceAnalyzer:
     def __init__(self, events_df: pd.DataFrame):
         self.events = events_df.sort_values(['game_id', 'period_id', 'time_seconds'])
         
-    def extract_routines(self) -> List[Dict]:
+    def routine_set(self) -> List[Dict]:
         routines = []
         
         for game_id in self.events['game_id'].unique():
@@ -24,13 +24,13 @@ class SetPieceAnalyzer:
                 if row['type_name'] in self.SETPIECE_TYPES:
                     routine_events = game_events.iloc[i:i+self.ROUTINE_LENGTH+1]
                     if len(routine_events) >= 2:
-                        routine = self._analyze_routine(row, routine_events)
+                        routine = self.routine_stats(row, routine_events)
                         if routine:
                             routines.append(routine)
         
         return routines
     
-    def _analyze_routine(self, setpiece_event: pd.Series, routine_events: pd.DataFrame) -> Dict:
+    def routine_stats(self, setpiece_event: pd.Series, routine_events: pd.DataFrame) -> Dict:
         routine = {
             'type': setpiece_event['type_name'],
             'game_id': setpiece_event['game_id'],
@@ -85,7 +85,7 @@ class SetPieceAnalyzer:
             return 'edge_box'
         return 'penalty_spot'
     
-    def cluster_routines(self, routines: List[Dict], n_clusters: int = 3) -> Dict:
+    def routine_group(self, routines: List[Dict], n_clusters: int = 3) -> Dict:
         if len(routines) < n_clusters:
             return {}
         
@@ -106,19 +106,19 @@ class SetPieceAnalyzer:
             if routines[i].get('has_goal'): clusters[label]['goal_count'] += 1
         
         for label in clusters:
-            cluster_routines = clusters[label]['routines']
-            zones = [r.get('first_target_zone', 'unknown') for r in cluster_routines]
-            swings = [r.get('swing_type', 'unknown') for r in cluster_routines]
+            routine_group = clusters[label]['routines']
+            zones = [r.get('first_target_zone', 'unknown') for r in routine_group]
+            swings = [r.get('swing_type', 'unknown') for r in routine_group]
             clusters[label]['primary_zone'] = Counter(zones).most_common(1)[0][0]
             clusters[label]['swing_type'] = Counter(swings).most_common(1)[0][0]
             clusters[label]['shot_rate'] = clusters[label]['shot_count'] / clusters[label]['count']
-            clusters[label]['avg_target_x'] = np.mean([r.get('first_target_x', 0) for r in cluster_routines])
-            clusters[label]['avg_target_y'] = np.mean([r.get('first_target_y', 0) for r in cluster_routines])
+            clusters[label]['avg_target_x'] = np.mean([r.get('first_target_x', 0) for r in routine_group])
+            clusters[label]['avg_target_y'] = np.mean([r.get('first_target_y', 0) for r in routine_group])
         
         return clusters
     
-    def top_routines(self, n_top: int = 2) -> List[Dict]:
-        routines = self.extract_routines()
+    def routine_top(self, n_top: int = 2) -> List[Dict]:
+        routines = self.routine_set()
         if not routines:
             return []
         
@@ -127,30 +127,30 @@ class SetPieceAnalyzer:
         results = []
         
         if len(corners) >= 3:
-            corner_clusters = self.cluster_routines(corners, min(3, len(corners)))
+            corner_clusters = self.routine_group(corners, min(3, len(corners)))
             for label, info in sorted(corner_clusters.items(), key=lambda x: x[1]['shot_rate'], reverse=True)[:n_top]:
                 results.append({
                     'type': 'Corner', 'cluster_id': int(label), 'frequency': info['count'],
                     'shot_rate': round(info['shot_rate'], 3), 'primary_zone': info['primary_zone'],
                     'swing_type': info['swing_type'], 'avg_target_x': round(info['avg_target_x'], 1),
                     'avg_target_y': round(info['avg_target_y'], 1),
-                    'defense_suggestion': self._defense_suggestion(info)
+                    'defense_suggestion': self.defense_note(info)
                 })
         
         if len(freekicks) >= 3:
-            fk_clusters = self.cluster_routines(freekicks, min(3, len(freekicks)))
+            fk_clusters = self.routine_group(freekicks, min(3, len(freekicks)))
             for label, info in sorted(fk_clusters.items(), key=lambda x: x[1]['shot_rate'], reverse=True)[:n_top]:
                 results.append({
                     'type': 'Freekick', 'cluster_id': int(label), 'frequency': info['count'],
                     'shot_rate': round(info['shot_rate'], 3), 'primary_zone': info['primary_zone'],
                     'swing_type': info['swing_type'], 'avg_target_x': round(info['avg_target_x'], 1),
                     'avg_target_y': round(info['avg_target_y'], 1),
-                    'defense_suggestion': self._defense_suggestion(info)
+                    'defense_suggestion': self.defense_note(info)
                 })
         
         return results
     
-    def _defense_suggestion(self, cluster_info: Dict) -> str:
+    def defense_note(self, cluster_info: Dict) -> str:
         zone, swing = cluster_info.get('primary_zone', ''), cluster_info.get('swing_type', '')
         suggestions = []
         
@@ -166,6 +166,6 @@ class SetPieceAnalyzer:
         return " / ".join(suggestions) if suggestions else "기본 수비 유지"
 
 
-def team_setpieces(events_df: pd.DataFrame, n_top: int = 2) -> List[Dict]:
+def team_set(events_df: pd.DataFrame, n_top: int = 2) -> List[Dict]:
     analyzer = SetPieceAnalyzer(events_df)
-    return analyzer.top_routines(n_top)
+    return analyzer.routine_top(n_top)

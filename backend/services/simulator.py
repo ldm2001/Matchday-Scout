@@ -8,10 +8,10 @@ from collections import Counter
 class TacticalSimulator:
     def __init__(self, events_df: pd.DataFrame):
         self.events = events_df.sort_values(['game_id', 'period_id', 'time_seconds'])
-        self._transition_matrix()
+        self.trans_mat()
     
     # 이벤트 전이 확률 행렬 구축
-    def _transition_matrix(self):
+    def trans_mat(self):
         self.transitions = Counter()
         self.event_counts = Counter()
         
@@ -24,12 +24,12 @@ class TacticalSimulator:
                 self.event_counts[current] += 1
     
     # 전이 확률 계산
-    def _transition_prob(self, from_event: str, to_event: str) -> float:
+    def trans_prob(self, from_event: str, to_event: str) -> float:
         count = self.event_counts.get(from_event, 0)
         return 0 if count == 0 else self.transitions.get((from_event, to_event), 0) / count
     
     # 특정 선수 압박 시 시나리오
-    def pressing_scenario(self, hub_player_id: int) -> Dict:
+    def hub_case(self, hub_player_id: int) -> Dict:
         player_passes = self.events[
             (self.events['player_id'] == hub_player_id) & (self.events['type_name'] == 'Pass')
         ]
@@ -75,11 +75,11 @@ class TacticalSimulator:
             'player_id': hub_player_id, 'total_passes': total,
             'scenario_a': scenario_a, 'scenario_b': scenario_b,
             'on_failure_followups': followup_probs,
-            'recommendation': self._recommendation(success_rate, failure_rate, pressing_effect, pass_fail_followups)
+            'recommendation': self.rec_note(success_rate, failure_rate, pressing_effect, pass_fail_followups)
         }
     
     # 전술 제안 생성
-    def _recommendation(self, success_rate: float, failure_rate: float, pressing_effect: float, followups: Counter) -> str:
+    def rec_note(self, success_rate: float, failure_rate: float, pressing_effect: float, followups: Counter) -> str:
         rec = "✅ 적극 압박 권장: " if success_rate * pressing_effect > 0.1 else "⚠️ 선택적 압박 권장: "
         if followups:
             top_followup = followups.most_common(1)[0][0]
@@ -89,7 +89,7 @@ class TacticalSimulator:
         return rec
     
     # 패턴 중간 차단 시뮬레이션
-    def pattern_disruption(self, pattern_sequence: List[str], disruption_point: int) -> Dict:
+    def pattern_gap(self, pattern_sequence: List[str], disruption_point: int) -> Dict:
         if disruption_point >= len(pattern_sequence):
             return {'error': '차단 포인트가 패턴 길이를 초과'}
         
@@ -100,7 +100,7 @@ class TacticalSimulator:
         for outcome in ['Tackle', 'Interception', 'Duel']:
             followups = {}
             for next_event in ['Recovery', 'Clearance', 'Pass', 'Carry', 'Out']:
-                prob = self._transition_prob(outcome, next_event)
+                prob = self.trans_prob(outcome, next_event)
                 if prob > 0.05: followups[next_event] = round(prob, 3)
             possible_outcomes[outcome] = followups
         
@@ -110,23 +110,23 @@ class TacticalSimulator:
         }
     
     # 약점 체인 분석
-    def vulnerability_chain(self, hub_player_id: int) -> Dict:
-        hub_scenario = self.pressing_scenario(hub_player_id)
+    def vuln_chain(self, hub_player_id: int) -> Dict:
+        hub_scenario = self.hub_case(hub_player_id)
         if 'error' in hub_scenario: return hub_scenario
         
         chain = {
             'step1': {'action': "허브 선수 압박", 'expected_result': "패스 실패율 +15%p 증가"},
-            'step2': {'action': "예상 반응", 'expected_result': self._main_reaction(hub_scenario['on_failure_followups'])},
-            'step3': {'action': "기회 창출", 'expected_result': self._opportunity(hub_scenario['on_failure_followups'])}
+            'step2': {'action': "예상 반응", 'expected_result': self.main_note(hub_scenario['on_failure_followups'])},
+            'step3': {'action': "기회 창출", 'expected_result': self.chance_note(hub_scenario['on_failure_followups'])}
         }
         
         return {
-            'player_id': hub_player_id, 'vulnerability_chain': chain,
-            'summary': self._chain_summary(chain)
+            'player_id': hub_player_id, 'vuln_chain': chain,
+            'summary': self.chain_note(chain)
         }
     
     # 주요 반응 예측
-    def _main_reaction(self, followups: Dict) -> str:
+    def main_note(self, followups: Dict) -> str:
         if not followups: return "데이터 부족"
         top_event = max(followups, key=followups.get)
         prob = followups[top_event]
@@ -140,20 +140,20 @@ class TacticalSimulator:
         return reactions.get(top_event, f"{top_event} (확률 {prob*100:.0f}%)")
     
     # 기회 유형 분석
-    def _opportunity(self, followups: Dict) -> str:
+    def chance_note(self, followups: Dict) -> str:
         if not followups: return "상황 판단 필요"
         if 'Interception' in followups or 'Recovery' in followups: return "⚡ 역습 기회 (볼 탈취 가능)"
         elif 'Clearance' in followups: return "🎯 세컨볼 회수 → 공격 전환"
         return "🔄 계속 압박 유지"
     
     # 체인 요약 생성
-    def _chain_summary(self, chain: Dict) -> str:
+    def chain_note(self, chain: Dict) -> str:
         return f"{chain['step1']['action']} → {chain['step2']['expected_result']} → {chain['step3']['expected_result']}"
 
 
-def simulate_tactics(events_df: pd.DataFrame, hub_player_id: int) -> Dict:
+def tactic_sim(events_df: pd.DataFrame, hub_player_id: int) -> Dict:
     simulator = TacticalSimulator(events_df)
     return {
-        'pressing_simulation': simulator.pressing_scenario(hub_player_id),
-        'vulnerability_chain': simulator.vulnerability_chain(hub_player_id)
+        'pressing_simulation': simulator.hub_case(hub_player_id),
+        'vuln_chain': simulator.vuln_chain(hub_player_id)
     }

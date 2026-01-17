@@ -5,11 +5,11 @@ from typing import Optional
 
 import sys
 sys.path.append('..')
-from services.data_loader import team_data, teams_list
-from services.match_simulator import pre_match_simulation
-from services.vaep_calculator import team_vaep
-from services.simulator import simulate_tactics
-from services.chance_analyzer import missed_chances, match_list_results
+from services.data_loader import team_events, match_events, teams
+from services.match_simulator import prematch as prematch_job
+from services.vaep_calculator import team_vals
+from services.simulator import tactic_sim
+from services.chance_analyzer import chance_log, match_log
 
 router = APIRouter()
 
@@ -28,12 +28,12 @@ class PressingRequest(BaseModel):
 @router.post("/pre-match")
 def prematch(request: PreMatchRequest):
     try:
-        our_events = team_data(request.our_team_id, request.n_games)
-        opponent_events = team_data(request.opponent_id, request.n_games)
+        our_events = team_events(request.our_team_id, request.n_games)
+        opponent_events = team_events(request.opponent_id, request.n_games)
         if len(our_events) == 0: raise HTTPException(status_code=404, detail="우리팀 데이터 없음")
         if len(opponent_events) == 0: raise HTTPException(status_code=404, detail="상대팀 데이터 없음")
         
-        result = pre_match_simulation(our_events, opponent_events)
+        result = prematch_job(our_events, opponent_events)
         result['our_team_id'] = request.our_team_id
         result['opponent_id'] = request.opponent_id
         return result
@@ -45,9 +45,9 @@ def prematch(request: PreMatchRequest):
 @router.get("/vaep/{team_id}")
 def vaep(team_id: int, n_games: int = 5):
     try:
-        events = team_data(team_id, n_games)
+        events = match_events(team_id, n_games, include_opponent=True, normalize_mode="none", spadl=False)
         if len(events) == 0: raise HTTPException(status_code=404, detail="팀 데이터 없음")
-        return team_vaep(events, team_id)
+        return team_vals(events, team_id)
     except HTTPException: raise
     except Exception as e: raise HTTPException(status_code=500, detail=str(e))
 
@@ -56,9 +56,9 @@ def vaep(team_id: int, n_games: int = 5):
 @router.post("/pressing")
 def pressing(request: PressingRequest):
     try:
-        events = team_data(request.team_id, request.n_games)
+        events = team_events(request.team_id, request.n_games)
         if len(events) == 0: raise HTTPException(status_code=404, detail="팀 데이터 없음")
-        return simulate_tactics(events, request.hub_player_id)
+        return tactic_sim(events, request.hub_player_id)
     except Exception as e: raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -66,7 +66,7 @@ def pressing(request: PressingRequest):
 @router.get("/opponents")
 def opponents():
     try:
-        return {"teams": teams_list()}
+        return {"teams": teams()}
     except Exception as e: raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -74,7 +74,7 @@ def opponents():
 @router.get("/matches")
 def matches(team_id: int = None):
     try:
-        return {"matches": match_list_results(team_id)}
+        return {"matches": match_log(team_id)}
     except Exception as e: raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -82,5 +82,5 @@ def matches(team_id: int = None):
 @router.get("/matches/{game_id}/chances")
 def chances(game_id: int):
     try:
-        return missed_chances(game_id)
+        return chance_log(game_id)
     except Exception as e: raise HTTPException(status_code=500, detail=str(e))

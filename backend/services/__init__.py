@@ -1,14 +1,14 @@
 # 서비스 패키지
-from .data_loader import raw_data, match_info, team_data, teams_list
-from .pattern_analyzer import team_patterns, PhaseAnalyzer, PatternMiner
-from .setpiece_analyzer import team_setpieces, SetPieceAnalyzer
-from .network_analyzer import team_network, NetworkAnalyzer
-from .simulator import simulate_tactics, TacticalSimulator
+from .data_loader import raw, matches, team_events, match_events, teams
+from .pattern_analyzer import team_pat, PhaseAnalyzer, PatternMiner
+from .setpiece_analyzer import team_set, SetPieceAnalyzer
+from .network_analyzer import team_net, NetworkAnalyzer
+from .simulator import tactic_sim, TacticalSimulator
 
 __all__ = [
-    'raw_data', 'match_info', 'team_data', 'teams_list',
-    'team_patterns', 'PhaseAnalyzer', 'PatternMiner',
-    'team_setpieces', 'SetPieceAnalyzer',
-    'team_network', 'NetworkAnalyzer',
-    'simulate_tactics', 'TacticalSimulator'
+    'raw', 'matches', 'team_events', 'match_events', 'teams',
+    'team_pat', 'PhaseAnalyzer', 'PatternMiner',
+    'team_set', 'SetPieceAnalyzer',
+    'team_net', 'NetworkAnalyzer',
+    'tactic_sim', 'TacticalSimulator'
 ]

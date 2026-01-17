@@ -3,8 +3,8 @@ from fastapi import APIRouter, HTTPException
 
 import sys
 sys.path.append('..')
-from services.data_loader import team_data
-from services.network_analyzer import team_network, NetworkAnalyzer
+from services.data_loader import team_events
+from services.network_analyzer import team_net, NetworkAnalyzer
 
 router = APIRouter()
 
@@ -13,11 +13,11 @@ router = APIRouter()
 @router.get("/{team_id}")
 def network(team_id: int, n_games: int = 5, n_hubs: int = 2):
     try:
-        events = team_data(team_id, n_games)
+        events = team_events(team_id, n_games)
         if len(events) == 0:
             raise HTTPException(status_code=404, detail="이벤트 데이터가 없습니다")
         
-        result = team_network(events, n_hubs)
+        result = team_net(events, n_hubs)
         return {
             'team_id': team_id, 'n_games_analyzed': n_games, 'hubs': result['hubs'],
             'network_stats': {'nodes': len(result['network']['nodes']), 'edges': len(result['network']['edges'])}
@@ -32,13 +32,13 @@ def network(team_id: int, n_games: int = 5, n_hubs: int = 2):
 @router.get("/{team_id}/graph")
 def graph(team_id: int, n_games: int = 5):
     try:
-        events = team_data(team_id, n_games)
+        events = team_events(team_id, n_games)
         if len(events) == 0:
             raise HTTPException(status_code=404, detail="이벤트 데이터가 없습니다")
         
         analyzer = NetworkAnalyzer(events)
-        analyzer.pass_network()
-        data = analyzer.network_data()
+        analyzer.net_graph()
+        data = analyzer.net_data()
         
         return {'team_id': team_id, 'n_games_analyzed': n_games, 'graph': data}
     except HTTPException:
@@ -51,13 +51,13 @@ def graph(team_id: int, n_games: int = 5):
 @router.get("/{team_id}/hubs/{player_id}")
 def hub_detail(team_id: int, player_id: int, n_games: int = 5):
     try:
-        events = team_data(team_id, n_games)
+        events = team_events(team_id, n_games)
         if len(events) == 0:
             raise HTTPException(status_code=404, detail="이벤트 데이터가 없습니다")
         
         analyzer = NetworkAnalyzer(events)
-        analyzer.pass_network()
-        cent = analyzer.centrality()
+        analyzer.net_graph()
+        cent = analyzer.cent()
         
         if player_id not in cent:
             raise HTTPException(status_code=404, detail="해당 선수를 찾을 수 없습니다")
@@ -66,8 +66,8 @@ def hub_detail(team_id: int, player_id: int, n_games: int = 5):
         return {
             'team_id': team_id, 'player_id': player_id,
             'player_name': stats['name'], 'position': stats['position'],
-            'stats': stats, 'key_connections': analyzer._key_connections(player_id, 5),
-            'disruption_impact': analyzer._disruption_impact(player_id)
+            'stats': stats, 'key_connections': analyzer.link_set(player_id, 5),
+            'disruption_impact': analyzer.impact_stat(player_id)
         }
     except HTTPException:
         raise
@@ -77,15 +77,15 @@ def hub_detail(team_id: int, player_id: int, n_games: int = 5):
 
 # 모든 선수의 중심성 지표
 @router.get("/{team_id}/centrality")
-def centrality_endpoint(team_id: int, n_games: int = 5):
+def cent_data(team_id: int, n_games: int = 5):
     try:
-        events = team_data(team_id, n_games)
+        events = team_events(team_id, n_games)
         if len(events) == 0:
             raise HTTPException(status_code=404, detail="이벤트 데이터가 없습니다")
         
         analyzer = NetworkAnalyzer(events)
-        analyzer.pass_network()
-        cent = analyzer.centrality()
+        analyzer.net_graph()
+        cent = analyzer.cent()
         
         players = [{'player_id': int(pid) if not isinstance(pid, str) else pid, **stats}
                    for pid, stats in cent.items()]

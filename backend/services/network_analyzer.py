@@ -7,7 +7,7 @@ from collections import Counter
 import math
 
 
-def safe_float(value, default=0.0):
+def num(value, default=0.0):
     if value is None:
         return default
     if isinstance(value, float) and (math.isnan(value) or math.isinf(value)):
@@ -19,9 +19,9 @@ def safe_float(value, default=0.0):
         return default
 
 
-def safe_int(value, default=0):
+def num_int(value, default=0):
     try:
-        return int(safe_float(value, default))
+        return int(num(value, default))
     except:
         return default
 
@@ -32,7 +32,7 @@ class NetworkAnalyzer:
         self.graph = None
         self.player_stats = {}
         
-    def pass_network(self) -> nx.DiGraph:
+    def net_graph(self) -> nx.DiGraph:
         self.graph = nx.DiGraph()
         passes = self.events[self.events['type_name'] == 'Pass'].copy()
         pass_received = self.events[self.events['type_name'] == 'Pass Received'].copy()
@@ -42,7 +42,7 @@ class NetworkAnalyzer:
             player_passes = passes[passes['player_id'] == player_id]
             if len(player_passes) > 0:
                 first_row = player_passes.iloc[0]
-                self.graph.add_node(safe_int(player_id),
+                self.graph.add_node(num_int(player_id),
                     name=str(first_row.get('player_name_ko', str(player_id))),
                     position=str(first_row.get('position_name', 'Unknown')),
                     main_position=str(first_row.get('main_position', 'Unknown')))
@@ -61,7 +61,7 @@ class NetworkAnalyzer:
                     if receiver_event['team_id'] == pass_event['team_id']:
                         receiver_id = receiver_event['player_id']
                         if not pd.isna(receiver_id) and passer_id != receiver_id:
-                            pass_counts[(safe_int(passer_id), safe_int(receiver_id))] += 1
+                            pass_counts[(num_int(passer_id), num_int(receiver_id))] += 1
         
         for (passer, receiver), count in pass_counts.items():
             if passer in self.graph.nodes and receiver in self.graph.nodes:
@@ -69,8 +69,8 @@ class NetworkAnalyzer:
         
         return self.graph
     
-    def centrality(self) -> Dict:
-        if self.graph is None: self.pass_network()
+    def cent(self) -> Dict:
+        if self.graph is None: self.net_graph()
         if len(self.graph.nodes) == 0: return {}
         
         try: degree_cent = nx.degree_centrality(self.graph)
@@ -86,39 +86,39 @@ class NetworkAnalyzer:
         result = {}
         for node in self.graph.nodes:
             node_data = self.graph.nodes[node]
-            hub_score = 0.3 * safe_float(degree_cent.get(node, 0)) + 0.4 * safe_float(betweenness_cent.get(node, 0)) + 0.3 * safe_float(pagerank.get(node, 0))
+            hub_score = 0.3 * num(degree_cent.get(node, 0)) + 0.4 * num(betweenness_cent.get(node, 0)) + 0.3 * num(pagerank.get(node, 0))
             result[node] = {
                 'name': str(node_data.get('name', str(node))),
                 'position': str(node_data.get('position', 'Unknown')),
                 'main_position': str(node_data.get('main_position', 'Unknown')),
-                'degree': safe_float(degree_cent.get(node, 0)),
-                'betweenness': safe_float(betweenness_cent.get(node, 0)),
-                'pagerank': safe_float(pagerank.get(node, 0)),
-                'passes_received': safe_int(in_degree.get(node, 0)),
-                'passes_made': safe_int(out_degree.get(node, 0)),
-                'hub_score': round(safe_float(hub_score), 4)
+                'degree': num(degree_cent.get(node, 0)),
+                'betweenness': num(betweenness_cent.get(node, 0)),
+                'pagerank': num(pagerank.get(node, 0)),
+                'passes_received': num_int(in_degree.get(node, 0)),
+                'passes_made': num_int(out_degree.get(node, 0)),
+                'hub_score': round(num(hub_score), 4)
             }
         return result
     
-    def find_hubs(self, n_hubs: int = 2) -> List[Dict]:
-        cent = self.centrality()
+    def hub_list(self, n_hubs: int = 2) -> List[Dict]:
+        cent = self.cent()
         if not cent: return []
         
         sorted_players = sorted(cent.items(), key=lambda x: x[1]['hub_score'], reverse=True)
         hubs = []
         for player_id, stats in sorted_players[:n_hubs]:
             hubs.append({
-                'player_id': safe_int(player_id), 'player_name': str(stats['name']),
+                'player_id': num_int(player_id), 'player_name': str(stats['name']),
                 'position': str(stats['position']), 'main_position': str(stats['main_position']),
-                'hub_score': safe_float(stats['hub_score']), 'betweenness': safe_float(stats['betweenness']),
-                'pagerank': safe_float(stats['pagerank']), 'passes_received': safe_int(stats['passes_received']),
-                'passes_made': safe_int(stats['passes_made']),
-                'key_connections': self._key_connections(player_id),
-                'disruption_impact': self._disruption_impact(player_id)
+                'hub_score': num(stats['hub_score']), 'betweenness': num(stats['betweenness']),
+                'pagerank': num(stats['pagerank']), 'passes_received': num_int(stats['passes_received']),
+                'passes_made': num_int(stats['passes_made']),
+                'key_connections': self.link_set(player_id),
+                'disruption_impact': self.impact_stat(player_id)
             })
         return hubs
     
-    def _key_connections(self, player_id, n_connections: int = 3) -> List[Dict]:
+    def link_set(self, player_id, n_connections: int = 3) -> List[Dict]:
         if self.graph is None or player_id not in self.graph.nodes: return []
         
         connections = []
@@ -127,7 +127,7 @@ class NetworkAnalyzer:
             for _, target, data in out_sorted[:n_connections]:
                 if target in self.graph.nodes:
                     connections.append({'type': 'passes_to', 'player_name': str(self.graph.nodes[target].get('name', '')),
-                        'position': str(self.graph.nodes[target].get('position', '')), 'count': safe_int(data.get('weight', 0))})
+                        'position': str(self.graph.nodes[target].get('position', '')), 'count': num_int(data.get('weight', 0))})
         except: pass
         
         try:
@@ -135,12 +135,12 @@ class NetworkAnalyzer:
             for source, _, data in in_sorted[:n_connections]:
                 if source in self.graph.nodes:
                     connections.append({'type': 'receives_from', 'player_name': str(self.graph.nodes[source].get('name', '')),
-                        'position': str(self.graph.nodes[source].get('position', '')), 'count': safe_int(data.get('weight', 0))})
+                        'position': str(self.graph.nodes[source].get('position', '')), 'count': num_int(data.get('weight', 0))})
         except: pass
         
         return connections
     
-    def _disruption_impact(self, player_id) -> Dict:
+    def impact_stat(self, player_id) -> Dict:
         default = {'impact_score': 0, 'edges_removed': 0, 'component_change': 0, 'description': '압박 타겟'}
         if self.graph is None or player_id not in self.graph.nodes: return default
         
@@ -164,15 +164,15 @@ class NetworkAnalyzer:
             elif impact_score >= 40: desc = f"{player_name} 압박 권장"
             else: desc = f"{player_name} 보조 타겟"
             
-            return {'impact_score': safe_int(impact_score), 'edges_removed': safe_int(edges_removed),
-                    'component_change': safe_int(component_change), 'description': desc}
+            return {'impact_score': num_int(impact_score), 'edges_removed': num_int(edges_removed),
+                    'component_change': num_int(component_change), 'description': desc}
         except:
             return default
     
-    def network_data(self) -> Dict:
-        if self.graph is None: self.pass_network()
+    def net_data(self) -> Dict:
+        if self.graph is None: self.net_graph()
         
-        cent = self.centrality()
+        cent = self.cent()
         passes = self.events[self.events['type_name'] == 'Pass'].copy()
         
         nodes = []
@@ -182,18 +182,18 @@ class NetworkAnalyzer:
             player_passes = passes[passes['player_id'] == node_id]
             nodes.append({
                 'id': str(node_id), 'name': str(node_data.get('name', str(node_id))),
-                'position': str(node_data.get('position', '')), 'hub_score': safe_float(c.get('hub_score', 0)),
-                'passes_total': safe_int(c.get('passes_received', 0)) + safe_int(c.get('passes_made', 0)),
-                'avg_x': round(safe_float(player_passes['start_x'].mean(), 50), 1),
-                'avg_y': round(safe_float(player_passes['start_y'].mean(), 34), 1)
+                'position': str(node_data.get('position', '')), 'hub_score': num(c.get('hub_score', 0)),
+                'passes_total': num_int(c.get('passes_received', 0)) + num_int(c.get('passes_made', 0)),
+                'avg_x': round(num(player_passes['start_x'].mean(), 50), 1),
+                'avg_y': round(num(player_passes['start_y'].mean(), 34), 1)
             })
         
-        edges = [{'source': str(s), 'target': str(t), 'weight': safe_int(d.get('weight', 1))} 
+        edges = [{'source': str(s), 'target': str(t), 'weight': num_int(d.get('weight', 1))} 
                  for s, t, d in self.graph.edges(data=True)]
         
         return {'nodes': nodes, 'edges': edges}
 
 
-def team_network(events_df: pd.DataFrame, n_hubs: int = 2) -> Dict:
+def team_net(events_df: pd.DataFrame, n_hubs: int = 2) -> Dict:
     analyzer = NetworkAnalyzer(events_df)
-    return {'hubs': analyzer.find_hubs(n_hubs), 'network': analyzer.network_data()}
+    return {'hubs': analyzer.hub_list(n_hubs), 'network': analyzer.net_data()}

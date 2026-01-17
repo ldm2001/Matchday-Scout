@@ -3,8 +3,8 @@ from fastapi import APIRouter, HTTPException
 
 import sys
 sys.path.append('..')
-from services.data_loader import team_data
-from services.setpiece_analyzer import team_setpieces, SetPieceAnalyzer
+from services.data_loader import team_events
+from services.setpiece_analyzer import team_set, SetPieceAnalyzer
 
 router = APIRouter()
 
@@ -13,11 +13,11 @@ router = APIRouter()
 @router.get("/{team_id}")
 def setpieces(team_id: int, n_games: int = 5, n_top: int = 2):
     try:
-        events = team_data(team_id, n_games)
+        events = team_events(team_id, n_games)
         if len(events) == 0:
             raise HTTPException(status_code=404, detail="이벤트 데이터가 없습니다")
         
-        routines = team_setpieces(events, n_top)
+        routines = team_set(events, n_top)
         setpiece_counts = {
             'corners': len(events[events['type_name'] == 'Pass_Corner']),
             'freekicks': len(events[events['type_name'].str.contains('Freekick', na=False)])
@@ -35,12 +35,12 @@ def setpieces(team_id: int, n_games: int = 5, n_top: int = 2):
 @router.get("/{team_id}/corners")
 def corners(team_id: int, n_games: int = 5):
     try:
-        events = team_data(team_id, n_games)
+        events = team_events(team_id, n_games)
         if len(events) == 0:
             raise HTTPException(status_code=404, detail="이벤트 데이터가 없습니다")
         
         analyzer = SetPieceAnalyzer(events)
-        all_routines = analyzer.extract_routines()
+        all_routines = analyzer.routine_set()
         corners = [r for r in all_routines if 'Corner' in r['type']]
         
         if not corners:
@@ -71,12 +71,12 @@ def corners(team_id: int, n_games: int = 5):
 @router.get("/{team_id}/freekicks")
 def freekicks(team_id: int, n_games: int = 5):
     try:
-        events = team_data(team_id, n_games)
+        events = team_events(team_id, n_games)
         if len(events) == 0:
             raise HTTPException(status_code=404, detail="이벤트 데이터가 없습니다")
         
         analyzer = SetPieceAnalyzer(events)
-        all_routines = analyzer.extract_routines()
+        all_routines = analyzer.routine_set()
         freekicks = [r for r in all_routines if 'Freekick' in r['type']]
         
         if not freekicks:

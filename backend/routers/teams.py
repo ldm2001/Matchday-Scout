@@ -4,7 +4,7 @@ from typing import Optional
 
 import sys
 sys.path.append('..')
-from services.data_loader import teams_list, team_data, match_info as load_match_info
+from services.data_loader import teams as team_rows, team_events, matches as match_rows
 
 router = APIRouter()
 
@@ -13,7 +13,7 @@ router = APIRouter()
 @router.get("/")
 def teams():
     try:
-        team_list = teams_list()
+        team_list = team_rows()
         return {"teams": team_list, "count": len(team_list)}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -23,16 +23,16 @@ def teams():
 @router.get("/overview")
 def overview():
     try:
-        match_info = load_match_info()
-        team_list = teams_list()
+        match_df = match_rows()
+        team_list = team_rows()
         standings = []
         
         for team in team_list:
             team_id = team['team_id']
             team_name = team['team_name']
             
-            home_matches = match_info[match_info['home_team_id'] == team_id]
-            away_matches = match_info[match_info['away_team_id'] == team_id]
+            home_matches = match_df[match_df['home_team_id'] == team_id]
+            away_matches = match_df[match_df['away_team_id'] == team_id]
             
             wins, draws, losses = 0, 0, 0
             goals_for, goals_against = 0, 0
@@ -54,8 +54,8 @@ def overview():
             total_matches = len(home_matches) + len(away_matches)
             points = wins * 3 + draws
             
-            all_matches = match_info[
-                (match_info['home_team_id'] == team_id) | (match_info['away_team_id'] == team_id)
+            all_matches = match_df[
+                (match_df['home_team_id'] == team_id) | (match_df['away_team_id'] == team_id)
             ].sort_values('game_date', ascending=False).head(5)
             
             form = []
@@ -90,9 +90,9 @@ def overview():
 @router.get("/{team_id}")
 def info(team_id: int):
     try:
-        match_info = load_match_info()
-        home_matches = match_info[match_info['home_team_id'] == team_id]
-        away_matches = match_info[match_info['away_team_id'] == team_id]
+        match_df = match_rows()
+        home_matches = match_df[match_df['home_team_id'] == team_id]
+        away_matches = match_df[match_df['away_team_id'] == team_id]
         
         if len(home_matches) == 0 and len(away_matches) == 0:
             raise HTTPException(status_code=404, detail="팀을 찾을 수 없습니다")
@@ -100,8 +100,8 @@ def info(team_id: int):
         team_name = home_matches.iloc[0]['home_team_name_ko'] if len(home_matches) > 0 else away_matches.iloc[0]['away_team_name_ko']
         total_matches = len(home_matches) + len(away_matches)
         
-        all_matches = match_info[
-            (match_info['home_team_id'] == team_id) | (match_info['away_team_id'] == team_id)
+        all_matches = match_df[
+            (match_df['home_team_id'] == team_id) | (match_df['away_team_id'] == team_id)
         ].sort_values('game_date', ascending=False)
         
         recent_matches = []
@@ -126,7 +126,7 @@ def info(team_id: int):
 @router.get("/{team_id}/events")
 def events(team_id: int, n_games: int = 5):
     try:
-        events = team_data(team_id, n_games)
+        events = team_events(team_id, n_games)
         if len(events) == 0:
             raise HTTPException(status_code=404, detail="이벤트 데이터가 없습니다")
         

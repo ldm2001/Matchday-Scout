@@ -3,10 +3,10 @@ import pandas as pd
 import numpy as np
 import math
 from typing import Dict, List
-from services.data_loader import raw_data, match_info
+from services.data_loader import raw, matches
 
 
-def safe_float(value, default=0.0):
+def num(value, default=0.0):
     if value is None:
         return default
     if isinstance(value, (int, float)):
@@ -20,9 +20,9 @@ def safe_float(value, default=0.0):
         return default
 
 
-def shot_context(shot: pd.Series, before_events: pd.DataFrame) -> Dict:
-    shot_x = safe_float(shot.get('start_x', 50), 50)
-    shot_y = safe_float(shot.get('start_y', 34), 34)
+def shot_ctx(shot: pd.Series, before_events: pd.DataFrame) -> Dict:
+    shot_x = num(shot.get('start_x', 50), 50)
+    shot_y = num(shot.get('start_y', 34), 34)
     result = str(shot.get('result_name', ''))
     
     distance = 105 - shot_x
@@ -70,30 +70,30 @@ def shot_context(shot: pd.Series, before_events: pd.DataFrame) -> Dict:
     return {
         'failure_reasons': failure_reasons,
         'suggestion_reason': suggestion_reason,
-        'better_position': {'x': safe_float(better_x, 85), 'y': safe_float(better_y, 34)},
-        'original_xg': safe_float(orig_xg * 100, 5),
-        'improved_xg': safe_float(new_xg * 100, 10),
-        'xg_improvement': safe_float((new_xg - orig_xg) * 100, 2),
+        'better_position': {'x': num(better_x, 85), 'y': num(better_y, 34)},
+        'original_xg': num(orig_xg * 100, 5),
+        'improved_xg': num(new_xg * 100, 10),
+        'xg_improvement': num((new_xg - orig_xg) * 100, 2),
     }
 
 
-def play_sequence(team_events: pd.DataFrame, end_time: float, period: int, n_events: int = 5) -> List[Dict]:
+def play_seq(team_events: pd.DataFrame, end_time: float, period: int, n_events: int = 5) -> List[Dict]:
     before_shot = team_events[(team_events['period_id'] == period) & 
         (team_events['time_seconds'] >= end_time - 15) & 
         (team_events['time_seconds'] < end_time)].sort_values('time_seconds').tail(n_events)
     
-    return [{'time': safe_float(e.get('time_seconds', 0)), 'player': str(e.get('player_name_ko', '')),
+    return [{'time': num(e.get('time_seconds', 0)), 'player': str(e.get('player_name_ko', '')),
              'position': str(e.get('position_name', '')), 'action': str(e.get('type_name', '')),
-             'result': str(e.get('result_name', '')), 'start_x': safe_float(e.get('start_x', 0)),
-             'start_y': safe_float(e.get('start_y', 0)), 'end_x': safe_float(e.get('end_x', 0)),
-             'end_y': safe_float(e.get('end_y', 0))} for _, e in before_shot.iterrows()]
+             'result': str(e.get('result_name', '')), 'start_x': num(e.get('start_x', 0)),
+             'start_y': num(e.get('start_y', 0)), 'end_x': num(e.get('end_x', 0)),
+             'end_y': num(e.get('end_y', 0))} for _, e in before_shot.iterrows()]
 
 
-def missed_chances(game_id: int) -> Dict:
-    matches = match_info()
-    events = raw_data()
+def chance_log(game_id: int) -> Dict:
+    match_df = matches()
+    events = raw()
     
-    match = matches[matches['game_id'] == game_id]
+    match = match_df[match_df['game_id'] == game_id]
     if len(match) == 0:
         return {'error': '경기를 찾을 수 없습니다'}
     
@@ -110,7 +110,7 @@ def missed_chances(game_id: int) -> Dict:
     
     game_events = events[events['game_id'] == game_id].copy()
     
-    def key_chances(team_id: int, team_events: pd.DataFrame, team_name: str, is_home: bool, limit: int = 2) -> List[Dict]:
+    def key_set(team_id: int, team_events: pd.DataFrame, team_name: str, is_home: bool, limit: int = 2) -> List[Dict]:
         chances = []
         shots = team_events[team_events['type_name'].str.contains('Shot', na=False)]
         
@@ -122,23 +122,23 @@ def missed_chances(game_id: int) -> Dict:
                 (team_events['time_seconds'] >= shot_time - 10) & 
                 (team_events['time_seconds'] < shot_time)].sort_values('time_seconds')
             
-            raw_x, raw_y = safe_float(shot.get('start_x', 50), 50), safe_float(shot.get('start_y', 34), 34)
+            raw_x, raw_y = num(shot.get('start_x', 50), 50), num(shot.get('start_y', 34), 34)
             shot_x, shot_y = (105 - raw_x, 68 - raw_y) if not is_home else (raw_x, raw_y)
             
             shot_copy = shot.copy()
             shot_copy['start_x'], shot_copy['start_y'] = shot_x, shot_y
-            ctx = shot_context(shot_copy, before_shot)
-            seq = play_sequence(team_events, shot_time, period)
+            ctx = shot_ctx(shot_copy, before_shot)
+            seq = play_seq(team_events, shot_time, period)
             last = before_shot.iloc[-1] if len(before_shot) > 0 else None
             
             chances.append({
-                'time': safe_float(shot_time, 0),
+                'time': num(shot_time, 0),
                 'time_display': f"{'전반' if period == 1 else '후반'} {int(shot_time // 60)}분",
                 'period': int(period), 'player': str(shot.get('player_name_ko', '')),
                 'player_position': str(shot.get('position_name', '')),
                 'action': str(shot.get('type_name', '')), 'result': str(shot.get('result_name', '')),
                 'original_situation': {'description': f"{shot.get('player_name_ko', '')} 선수 슈팅",
-                    'position': {'x': shot_x, 'y': shot_y}, 'distance_to_goal': 105 - shot_x,
+                    'position': {'x': shot_x, 'y': shot_y}, 'goal_dist': 105 - shot_x,
                     'zone': '페널티박스 내' if shot_x >= 85 and 15 <= shot_y <= 53 else '박스 외곽'},
                 'failure_analysis': {'reasons': ctx['failure_reasons'], 'xg': ctx['original_xg']},
                 'suggestion': {'type': 'better_position', 'target_position': ctx['better_position'],
@@ -146,8 +146,8 @@ def missed_chances(game_id: int) -> Dict:
                     'expected_xg': ctx['improved_xg'], 'xg_improvement': f"+{ctx['xg_improvement']}%p"},
                 'play_sequence': seq,
                 'setup_play': {'player': str(last.get('player_name_ko', '')), 'action': str(last.get('type_name', '')),
-                    'from_x': safe_float(last.get('start_x', 0)), 'from_y': safe_float(last.get('start_y', 0)),
-                    'to_x': safe_float(last.get('end_x', 0)), 'to_y': safe_float(last.get('end_y', 0))} if last is not None else None,
+                    'from_x': num(last.get('start_x', 0)), 'from_y': num(last.get('start_y', 0)),
+                    'to_x': num(last.get('end_x', 0)), 'to_y': num(last.get('end_y', 0))} if last is not None else None,
                 'position': {'x': shot_x, 'y': shot_y},
             })
             if len(chances) >= limit: break
@@ -165,26 +165,26 @@ def missed_chances(game_id: int) -> Dict:
         home_events, away_events = game_events[game_events['team_id'] == home_id], game_events[game_events['team_id'] == away_id]
         analysis['chances'] = [
             {'team_id': home_id, 'team_name': match['home_team_name_ko'], 
-             'key_moments': key_chances(home_id, home_events, match['home_team_name_ko'], True, 1)},
+             'key_moments': key_set(home_id, home_events, match['home_team_name_ko'], True, 1)},
             {'team_id': away_id, 'team_name': match['away_team_name_ko'],
-             'key_moments': key_chances(away_id, away_events, match['away_team_name_ko'], False, 1)}
+             'key_moments': key_set(away_id, away_events, match['away_team_name_ko'], False, 1)}
         ]
         analysis['summary'] = f"무승부 ({home_score}-{away_score}): 양팀 결정적 찬스 분석"
     else:
         loser_events = game_events[game_events['team_id'] == loser_id]
         analysis['chances'] = [{'team_id': loser_id, 'team_name': loser_name,
-            'key_moments': key_chances(loser_id, loser_events, loser_name, loser_id == home_id, 2)}]
+            'key_moments': key_set(loser_id, loser_events, loser_name, loser_id == home_id, 2)}]
         analysis['summary'] = f"{loser_name} 패배 분석: 결과를 바꿀 수 있었던 찬스"
     
     return analysis
 
 
-def match_list_results(team_id: int = None) -> List[Dict]:
-    matches = match_info()
+def match_log(team_id: int = None) -> List[Dict]:
+    match_df = matches()
     if team_id:
-        matches = matches[(matches['home_team_id'] == team_id) | (matches['away_team_id'] == team_id)]
+        match_df = match_df[(match_df['home_team_id'] == team_id) | (match_df['away_team_id'] == team_id)]
     
-    recent = matches.sort_values('game_date', ascending=False).head(20)
+    recent = match_df.sort_values('game_date', ascending=False).head(20)
     results = []
     for _, m in recent.iterrows():
         h, a = int(m['home_score']), int(m['away_score'])

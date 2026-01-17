@@ -1,10 +1,10 @@
 # 팀 강약점 AI 분석 서비스
 from typing import Dict, List
-from services.data_loader import raw_data
+from services.data_loader import raw
 import numpy as np
 
 
-def team_strengths(team_id: int, patterns: List[Dict], setpieces: List[Dict], hubs: List[Dict]) -> Dict:
+def team_stats(team_id: int, patterns: List[Dict], setpieces: List[Dict], hubs: List[Dict]) -> Dict:
     strengths = []
     weaknesses = []
     insights = []
@@ -124,11 +124,11 @@ def team_strengths(team_id: int, patterns: List[Dict], setpieces: List[Dict], hu
         'strengths': sorted(strengths, key=lambda x: x['score'], reverse=True)[:3],
         'weaknesses': sorted(weaknesses, key=lambda x: x['score'])[:3],
         'insights': insights[:4],
-        'summary': _generate_summary(strengths, weaknesses)
+        'summary': sum_text(strengths, weaknesses)
     }
 
 
-def _generate_summary(strengths: List[Dict], weaknesses: List[Dict]) -> str:
+def sum_text(strengths: List[Dict], weaknesses: List[Dict]) -> str:
     if not strengths and not weaknesses:
         return "분석할 데이터가 부족합니다."
     

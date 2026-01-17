@@ -5,15 +5,15 @@ import math
 
 import sys
 sys.path.append('..')
-from services.data_loader import team_data
-from services.pattern_analyzer import team_patterns, PhaseAnalyzer
-from services.setpiece_analyzer import team_setpieces
-from services.network_analyzer import team_network
-from services.team_analyzer import team_strengths
-from services.vaep_analyzer import team_vaep_summary
+from services.data_loader import team_events, match_events
+from services.pattern_analyzer import team_pat, PhaseAnalyzer
+from services.setpiece_analyzer import team_set
+from services.network_analyzer import team_net
+from services.team_analyzer import team_stats
+from services.vaep_model import team_sum
 
 
-def safe_float(value, default=0.0):
+def num(value, default=0.0):
     if value is None: return default
     try:
         f = float(value)
@@ -21,7 +21,7 @@ def safe_float(value, default=0.0):
     except: return default
 
 
-def safe_str(value, default=''):
+def txt(value, default=''):
     if value is None: return default
     s = str(value)
     return default if s.lower() in ('nan', 'none', 'null', '') else s
@@ -34,11 +34,11 @@ router = APIRouter()
 @router.get("/{team_id}")
 def patterns(team_id: int, n_games: int = 5, n_patterns: int = 3):
     try:
-        events = team_data(team_id, n_games)
+        events = match_events(team_id, n_games, include_opponent=True, normalize_mode="team")
         if len(events) == 0:
             raise HTTPException(status_code=404, detail="이벤트 데이터가 없습니다")
         
-        result = team_patterns(events, n_patterns)
+        result = team_pat(events, team_id, n_patterns)
         return {'team_id': team_id, 'n_games_analyzed': n_games, 'total_events': len(events), 'patterns': result}
     except HTTPException: raise
     except Exception as e: raise HTTPException(status_code=500, detail=str(e))
@@ -48,59 +48,61 @@ def patterns(team_id: int, n_games: int = 5, n_patterns: int = 3):
 @router.get("/{team_id}/phases")
 def phases(team_id: int, n_games: int = 5):
     try:
-        events = team_data(team_id, n_games)
+        events = match_events(team_id, n_games, include_opponent=True)
         if len(events) == 0:
             raise HTTPException(status_code=404, detail="이벤트 데이터가 없습니다")
         
         analyzer = PhaseAnalyzer(events)
-        phase_list = analyzer.split_phases()
+        phase_list = analyzer.phase_list()
+        team_phases = [p for p in phase_list if int(p.iloc[0].get('team_id', -1)) == int(team_id)]
         
         summaries = []
-        for i, phase in enumerate(phase_list[:20]):
-            features = analyzer.phase_features(phase)
+        for i, phase in enumerate(team_phases[:20]):
+            features = analyzer.phase_stats(phase)
             summaries.append({
                 'phase_id': i, 'length': features['length'],
                 'duration': round(features['duration'], 1), 'has_shot': features['shot_count'] > 0,
                 'passes': features['pass_count'],
-                'start_zone': analyzer._pitch_zone(features['start_x'], features['start_y']),
+                'start_zone': analyzer.zone_tag(features['start_x'], features['start_y']),
                 'event_sequence': features['event_sequence'][:100]
             })
         
-        return {'team_id': team_id, 'n_games_analyzed': n_games, 'total_phases': len(phase_list), 'phases': summaries}
+        return {'team_id': team_id, 'n_games_analyzed': n_games, 'total_phases': len(team_phases), 'phases': summaries}
     except HTTPException: raise
     except Exception as e: raise HTTPException(status_code=500, detail=str(e))
 
 
 # 특정 Phase 리플레이 데이터
 @router.get("/{team_id}/phases/{phase_id}/replay")
-def phase_replay(team_id: int, phase_id: int, n_games: int = 5):
+def phase_data(team_id: int, phase_id: int, n_games: int = 5):
     try:
-        events = team_data(team_id, n_games)
+        events = match_events(team_id, n_games, include_opponent=True)
         if len(events) == 0:
             raise HTTPException(status_code=404, detail="이벤트 데이터가 없습니다")
         
         analyzer = PhaseAnalyzer(events)
-        phase_list = analyzer.split_phases()
+        phase_list = analyzer.phase_list()
+        team_phases = [p for p in phase_list if int(p.iloc[0].get('team_id', -1)) == int(team_id)]
         
-        if phase_id >= len(phase_list):
+        if phase_id >= len(team_phases):
             raise HTTPException(status_code=404, detail="Phase를 찾을 수 없습니다")
         
-        phase = phase_list[phase_id]
+        phase = team_phases[phase_id]
         start_time = phase['time_seconds'].min()
         replay_data = {'phase_id': phase_id, 'events': []}
         
         for _, event in phase.iterrows():
             replay_data['events'].append({
-                'time': safe_float(event.get('time_seconds', 0) - start_time, 0),
-                'type': safe_str(event.get('type_name'), '액션'),
-                'player': safe_str(event.get('player_name_ko'), '선수'),
-                'player_id': safe_str(event.get('player_id'), ''),
-                'position': safe_str(event.get('position_name'), ''),
-                'start_x': safe_float(event.get('start_x', 0), 50),
-                'start_y': safe_float(event.get('start_y', 0), 34),
-                'end_x': safe_float(event.get('end_x', 0), 50),
-                'end_y': safe_float(event.get('end_y', 0), 34),
-                'result': safe_str(event.get('result_name'), '')
+                'time': num(event.get('time_seconds', 0) - start_time, 0),
+                'type': txt(event.get('type_name'), '액션'),
+                'player': txt(event.get('player_name_ko'), '선수'),
+                'player_id': txt(event.get('player_id'), ''),
+                'position': txt(event.get('position_name'), ''),
+                'start_x': num(event.get('start_x', 0), 50),
+                'start_y': num(event.get('start_y', 0), 34),
+                'end_x': num(event.get('end_x', 0), 50),
+                'end_y': num(event.get('end_y', 0), 34),
+                'result': txt(event.get('result_name'), '')
             })
         
         return replay_data
@@ -110,30 +112,31 @@ def phase_replay(team_id: int, phase_id: int, n_games: int = 5):
 
 # 팀 강약점 AI 분석
 @router.get("/{team_id}/analysis")
-def team_analysis(team_id: int, n_games: int = 100):
+def team_note(team_id: int, n_games: int = 100):
     try:
-        events = team_data(team_id, n_games)
+        events = match_events(team_id, n_games, include_opponent=True)
         if len(events) == 0:
             raise HTTPException(status_code=404, detail="이벤트 데이터가 없습니다")
         
-        patterns_result = team_patterns(events, n_patterns=5)
-        setpieces_result = team_setpieces(events, n_top=4)
-        hubs_result = team_network(events, n_hubs=3)
+        patterns_result = team_pat(events, team_id, n_patterns=5)
+        team_df = team_events(team_id, n_games)
+        setpieces_result = team_set(team_df, n_top=4)
+        hubs_result = team_net(team_df, n_hubs=3)
         hubs = hubs_result.get('hubs', []) if isinstance(hubs_result, dict) else hubs_result
         
-        return team_strengths(team_id, patterns_result, setpieces_result, hubs)
+        return team_stats(team_id, patterns_result, setpieces_result, hubs)
     except HTTPException: raise
     except Exception as e: raise HTTPException(status_code=500, detail=str(e))
 
 
 # VAEP 분석 (Decroos et al., IJCAI 2019)
 @router.get("/{team_id}/vaep")
-def team_vaep(team_id: int, n_games: int = 100, n_top: int = 10):
+def team_vals(team_id: int, n_games: int = 100, n_top: int = 10):
     try:
-        events = team_data(team_id, n_games)
+        events = match_events(team_id, n_games, include_opponent=True, normalize_mode="none", spadl=False)
         if len(events) == 0:
             raise HTTPException(status_code=404, detail="이벤트 데이터가 없습니다")
         
-        return {'team_id': team_id, 'n_games_analyzed': n_games, **team_vaep_summary(events, n_top)}
+        return {'team_id': team_id, 'n_games_analyzed': n_games, **team_sum(events, team_id, n_top)}
     except HTTPException: raise
     except Exception as e: raise HTTPException(status_code=500, detail=str(e))
