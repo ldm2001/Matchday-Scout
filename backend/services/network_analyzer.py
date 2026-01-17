@@ -3,8 +3,10 @@ import pandas as pd
 import numpy as np
 import networkx as nx
 from typing import Dict, List
-from collections import Counter
+from functools import lru_cache
 import math
+
+from .data_loader import team_events
 
 
 def num(value, default=0.0):
@@ -31,41 +33,83 @@ class NetworkAnalyzer:
         self.events = events_df
         self.graph = None
         self.player_stats = {}
+        self.passes = None
         
     def net_graph(self) -> nx.DiGraph:
         self.graph = nx.DiGraph()
-        passes = self.events[self.events['type_name'] == 'Pass'].copy()
-        pass_received = self.events[self.events['type_name'] == 'Pass Received'].copy()
-        
-        for player_id in passes['player_id'].unique():
-            if pd.isna(player_id): continue
-            player_passes = passes[passes['player_id'] == player_id]
-            if len(player_passes) > 0:
-                first_row = player_passes.iloc[0]
-                self.graph.add_node(num_int(player_id),
-                    name=str(first_row.get('player_name_ko', str(player_id))),
-                    position=str(first_row.get('position_name', 'Unknown')),
-                    main_position=str(first_row.get('main_position', 'Unknown')))
-        
-        pass_counts = Counter()
-        for game_id in passes['game_id'].unique():
-            game_passes = passes[passes['game_id'] == game_id].sort_values('action_id')
-            game_received = pass_received[pass_received['game_id'] == game_id].sort_values('action_id')
-            
-            for _, pass_event in game_passes.iterrows():
-                passer_id = pass_event['player_id']
-                if pd.isna(passer_id): continue
-                next_received = game_received[game_received['action_id'] > pass_event['action_id']]
-                if len(next_received) > 0:
-                    receiver_event = next_received.iloc[0]
-                    if receiver_event['team_id'] == pass_event['team_id']:
-                        receiver_id = receiver_event['player_id']
-                        if not pd.isna(receiver_id) and passer_id != receiver_id:
-                            pass_counts[(num_int(passer_id), num_int(receiver_id))] += 1
-        
-        for (passer, receiver), count in pass_counts.items():
+        pass_cols = [
+            "game_id",
+            "action_id",
+            "team_id",
+            "player_id",
+            "player_name_ko",
+            "position_name",
+            "main_position",
+            "start_x",
+            "start_y",
+        ]
+        recv_cols = ["game_id", "action_id", "team_id", "player_id"]
+        passes = self.events[self.events["type_name"] == "Pass"][pass_cols].copy()
+        received = self.events[self.events["type_name"] == "Pass Received"][recv_cols].copy()
+
+        if passes.empty:
+            return self.graph
+
+        passes["action_id"] = pd.to_numeric(passes["action_id"], errors="coerce")
+        received["action_id"] = pd.to_numeric(received["action_id"], errors="coerce")
+        passes = passes.dropna(subset=["game_id", "team_id", "action_id", "player_id"])
+        received = received.dropna(subset=["game_id", "team_id", "action_id", "player_id"])
+        passes["game_id"] = passes["game_id"].astype(int)
+        passes["team_id"] = passes["team_id"].astype(int)
+        passes["action_id"] = passes["action_id"].astype(int)
+        received["game_id"] = received["game_id"].astype(int)
+        received["team_id"] = received["team_id"].astype(int)
+        received["action_id"] = received["action_id"].astype(int)
+        self.passes = passes
+        if passes.empty:
+            return self.graph
+
+        node_rows = passes.drop_duplicates("player_id")
+        for _, row in node_rows.iterrows():
+            player_id = row.get("player_id")
+            if pd.isna(player_id):
+                continue
+            self.graph.add_node(
+                num_int(player_id),
+                name=str(row.get("player_name_ko", str(player_id))),
+                position=str(row.get("position_name", "Unknown")),
+                main_position=str(row.get("main_position", "Unknown")),
+            )
+
+        if received.empty:
+            return self.graph
+
+        passes = passes.sort_values(["game_id", "team_id", "action_id"])
+        received = received.sort_values(["game_id", "team_id", "action_id"])
+
+        pairs = pd.merge_asof(
+            passes,
+            received,
+            on="action_id",
+            by=["game_id", "team_id"],
+            direction="forward",
+            suffixes=("", "_recv"),
+        )
+        pairs = pairs.dropna(subset=["player_id_recv"])
+        pairs = pairs[pairs["player_id"] != pairs["player_id_recv"]]
+        if pairs.empty:
+            return self.graph
+
+        edge_counts = (
+            pairs.groupby(["player_id", "player_id_recv"])
+            .size()
+            .reset_index(name="weight")
+        )
+        for _, row in edge_counts.iterrows():
+            passer = num_int(row.get("player_id"))
+            receiver = num_int(row.get("player_id_recv"))
             if passer in self.graph.nodes and receiver in self.graph.nodes:
-                self.graph.add_edge(passer, receiver, weight=count)
+                self.graph.add_edge(passer, receiver, weight=num_int(row.get("weight", 1)))
         
         return self.graph
     
@@ -173,7 +217,9 @@ class NetworkAnalyzer:
         if self.graph is None: self.net_graph()
         
         cent = self.cent()
-        passes = self.events[self.events['type_name'] == 'Pass'].copy()
+        passes = self.passes
+        if passes is None:
+            passes = self.events[self.events['type_name'] == 'Pass'].copy()
         
         nodes = []
         for node_id in self.graph.nodes:
@@ -197,3 +243,11 @@ class NetworkAnalyzer:
 def team_net(events_df: pd.DataFrame, n_hubs: int = 2) -> Dict:
     analyzer = NetworkAnalyzer(events_df)
     return {'hubs': analyzer.hub_list(n_hubs), 'network': analyzer.net_data()}
+
+
+@lru_cache(maxsize=128)
+def net_box(team_id: int, n_games: int, n_hubs: int, mark: tuple) -> Dict:
+    events = team_events(team_id, n_games)
+    if len(events) == 0:
+        return {}
+    return team_net(events, n_hubs)

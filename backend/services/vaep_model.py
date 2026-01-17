@@ -3,6 +3,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from typing import Dict, Iterable, List, Optional, Tuple
+from functools import lru_cache
 
 import numpy as np
 import pandas as pd
@@ -20,7 +21,7 @@ except Exception:
     CatBoostClassifier = None
     _HAS_CAT = False
 
-from .data_loader import raw, matches
+from .data_loader import raw, matches, match_events, data_stamp
 from .spadl import (
     action_rows,
     spadl_map,
@@ -31,7 +32,6 @@ from .spadl import (
 )
 
 K_ACTIONS = 10
-WINDOW = 3
 
 
 @dataclass
@@ -43,6 +43,7 @@ class VaepModels:
 
 
 _MODEL_CACHE: Dict[Tuple[Optional[pd.Timestamp], Tuple[int, ...]], VaepModels] = {}
+_MODEL_MARK: Optional[tuple] = None
 
 
 def _num(value: object, default: float = 0.0) -> float:
@@ -185,7 +186,7 @@ def _feat_pack(
                     break
 
             f: Dict[str, object] = {}
-            for offset, prefix in zip([-2, -1, 0], ["a0", "a1", "a2"]):
+            for offset, prefix in zip([-4, -3, -2, -1, 0], ["a0", "a1", "a2", "a3", "a4"]):
                 idx = i + offset
                 if idx < 0:
                     f[f"{prefix}_type"] = "none"
@@ -300,6 +301,12 @@ def _model_cal(
 def vaep_models(
     date_max: Optional[pd.Timestamp] = None, drop_games: Optional[Iterable[int]] = None
 ) -> VaepModels:
+    global _MODEL_MARK
+    mark = data_stamp()
+    if _MODEL_MARK != mark:
+        _MODEL_CACHE.clear()
+        _MODEL_MARK = mark
+
     date_key = pd.to_datetime(date_max) if date_max is not None else None
     if drop_games:
         drop_key = tuple(sorted({int(g) for g in drop_games if g is not None and not pd.isna(g)}))
@@ -341,18 +348,26 @@ def vaep_models(
     game_dates = match_df.set_index("game_id")["game_date"].to_dict()
     meta["game_date"] = meta["game_id"].map(game_dates)
 
-    # Time-based split by game date to avoid leakage.
-    unique_games = meta[["game_id", "game_date"]].drop_duplicates().sort_values("game_date", ascending=True)
-    if len(unique_games) < 2:
+    # Time-based split by game date to avoid leakage
+    unique_games = meta[["game_id", "game_date"]].drop_duplicates()
+    dated_games = unique_games.dropna(subset=["game_date"]).sort_values("game_date", ascending=True)
+    if len(dated_games) >= 2:
+        split_games = dated_games
+    elif len(unique_games) >= 2:
+        split_games = unique_games.sort_values("game_id", ascending=True)
+    else:
+        split_games = None
+
+    if split_games is None:
         split_idx = int(len(meta) * 0.8)
         split_idx = max(1, min(len(meta) - 1, split_idx))
         train_mask = pd.Series(range(len(meta))) < split_idx
         val_mask = ~train_mask
     else:
-        split_idx = int(len(unique_games) * 0.8)
-        split_idx = max(1, min(len(unique_games) - 1, split_idx))
-        train_games = set(unique_games.iloc[:split_idx]["game_id"].tolist())
-        val_games = set(unique_games.iloc[split_idx:]["game_id"].tolist())
+        split_idx = int(len(split_games) * 0.8)
+        split_idx = max(1, min(len(split_games) - 1, split_idx))
+        train_games = set(split_games.iloc[:split_idx]["game_id"].tolist())
+        val_games = set(split_games.iloc[split_idx:]["game_id"].tolist())
         train_mask = meta["game_id"].isin(train_games)
         val_mask = meta["game_id"].isin(val_games)
 
@@ -599,3 +614,19 @@ def team_vals(events: pd.DataFrame, team_id: int, n_top_actions: int = 5) -> Dic
         "methodology": "VAEP (Decroos et al., 2019)",
         "metrics": metrics,
     }
+
+
+@lru_cache(maxsize=64)
+def sum_box(team_id: int, n_games: int, n_top: int, mark: tuple) -> Dict:
+    events = match_events(team_id, n_games, include_opponent=True, normalize_mode="none", spadl=False)
+    if len(events) == 0:
+        return {}
+    return team_sum(events, team_id, n_top)
+
+
+@lru_cache(maxsize=64)
+def vals_box(team_id: int, n_games: int, n_top_actions: int, mark: tuple) -> Dict:
+    events = match_events(team_id, n_games, include_opponent=True, normalize_mode="none", spadl=False)
+    if len(events) == 0:
+        return {}
+    return team_vals(events, team_id, n_top_actions)

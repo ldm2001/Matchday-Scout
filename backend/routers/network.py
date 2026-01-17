@@ -3,8 +3,8 @@ from fastapi import APIRouter, HTTPException
 
 import sys
 sys.path.append('..')
-from services.data_loader import team_events
-from services.network_analyzer import team_net, NetworkAnalyzer
+from services.data_loader import team_events, data_stamp
+from services.network_analyzer import net_box, NetworkAnalyzer
 
 router = APIRouter()
 
@@ -13,11 +13,10 @@ router = APIRouter()
 @router.get("/{team_id}")
 def network(team_id: int, n_games: int = 5, n_hubs: int = 2):
     try:
-        events = team_events(team_id, n_games)
-        if len(events) == 0:
+        mark = data_stamp()
+        result = net_box(team_id, n_games, n_hubs, mark)
+        if not result:
             raise HTTPException(status_code=404, detail="이벤트 데이터가 없습니다")
-        
-        result = team_net(events, n_hubs)
         return {
             'team_id': team_id, 'n_games_analyzed': n_games, 'hubs': result['hubs'],
             'network_stats': {'nodes': len(result['network']['nodes']), 'edges': len(result['network']['edges'])}
@@ -32,15 +31,12 @@ def network(team_id: int, n_games: int = 5, n_hubs: int = 2):
 @router.get("/{team_id}/graph")
 def graph(team_id: int, n_games: int = 5):
     try:
-        events = team_events(team_id, n_games)
-        if len(events) == 0:
+        mark = data_stamp()
+        result = net_box(team_id, n_games, 2, mark)
+        if not result:
             raise HTTPException(status_code=404, detail="이벤트 데이터가 없습니다")
         
-        analyzer = NetworkAnalyzer(events)
-        analyzer.net_graph()
-        data = analyzer.net_data()
-        
-        return {'team_id': team_id, 'n_games_analyzed': n_games, 'graph': data}
+        return {'team_id': team_id, 'n_games_analyzed': n_games, 'graph': result['network']}
     except HTTPException:
         raise
     except Exception as e:

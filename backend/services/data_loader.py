@@ -9,18 +9,42 @@ from .spadl import team_norm, spadl_map
 DATA_DIR = Path(__file__).parent.parent.parent / "open_track"
 
 
-@lru_cache(maxsize=1)
-def raw() -> pd.DataFrame:
+def data_stamp() -> tuple:
+    raw_path = DATA_DIR / "raw_data.csv"
+    match_path = DATA_DIR / "match_info.csv"
+    try:
+        raw_stat = raw_path.stat()
+        raw_mark = (raw_stat.st_mtime_ns, raw_stat.st_size)
+    except FileNotFoundError:
+        raw_mark = (0, 0)
+    try:
+        match_stat = match_path.stat()
+        match_mark = (match_stat.st_mtime_ns, match_stat.st_size)
+    except FileNotFoundError:
+        match_mark = (0, 0)
+    return (raw_mark, match_mark)
+
+
+@lru_cache(maxsize=2)
+def _raw(mark: tuple) -> pd.DataFrame:
     df = pd.read_csv(DATA_DIR / "raw_data.csv", encoding='utf-8-sig')
     df.columns = df.columns.str.strip().str.replace('\ufeff', '')
     return df
 
 
-@lru_cache(maxsize=1)
-def matches() -> pd.DataFrame:
+def raw() -> pd.DataFrame:
+    return _raw(data_stamp())
+
+
+@lru_cache(maxsize=2)
+def _matches(mark: tuple) -> pd.DataFrame:
     df = pd.read_csv(DATA_DIR / "match_info.csv", encoding='utf-8-sig')
     df.columns = df.columns.str.strip().str.replace('\ufeff', '')
     return df
+
+
+def matches() -> pd.DataFrame:
+    return _matches(data_stamp())
 
 
 def team_events(team_id: int, n_games: int = 5) -> pd.DataFrame:

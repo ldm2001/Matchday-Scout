@@ -1,7 +1,12 @@
 # 팀 강약점 AI 분석 서비스
 from typing import Dict, List
-from services.data_loader import raw
+from functools import lru_cache
 import numpy as np
+
+from services.data_loader import match_events, team_events
+from services.pattern_analyzer import team_pat
+from services.setpiece_analyzer import team_set
+from services.network_analyzer import net_box
 
 
 def team_stats(team_id: int, patterns: List[Dict], setpieces: List[Dict], hubs: List[Dict]) -> Dict:
@@ -141,3 +146,18 @@ def sum_text(strengths: List[Dict], weaknesses: List[Dict]) -> str:
         parts.append(f"{', '.join(weak_cats)} 분야는 개선이 필요합니다")
     
     return ". ".join(parts) + "."
+
+
+@lru_cache(maxsize=64)
+def note_box(team_id: int, n_games: int, mark: tuple) -> Dict:
+    events = match_events(team_id, n_games, include_opponent=True)
+    if len(events) == 0:
+        return {}
+    patterns = team_pat(events, team_id, n_patterns=5)
+    team_df = team_events(team_id, n_games)
+    if len(team_df) == 0:
+        return {}
+    setpieces = team_set(team_df, n_top=4)
+    hubs_result = net_box(team_id, n_games, 3, mark)
+    hubs = hubs_result.get("hubs", []) if isinstance(hubs_result, dict) else hubs_result
+    return team_stats(team_id, patterns, setpieces, hubs)

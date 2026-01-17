@@ -5,9 +5,9 @@ from typing import Optional
 
 import sys
 sys.path.append('..')
-from services.data_loader import team_events, match_events, teams
+from services.data_loader import team_events, teams, data_stamp
 from services.match_simulator import prematch as prematch_job
-from services.vaep_calculator import team_vals
+from services.vaep_model import vals_box
 from services.simulator import tactic_sim
 from services.chance_analyzer import chance_log, match_log
 
@@ -45,9 +45,11 @@ def prematch(request: PreMatchRequest):
 @router.get("/vaep/{team_id}")
 def vaep(team_id: int, n_games: int = 5):
     try:
-        events = match_events(team_id, n_games, include_opponent=True, normalize_mode="none", spadl=False)
-        if len(events) == 0: raise HTTPException(status_code=404, detail="팀 데이터 없음")
-        return team_vals(events, team_id)
+        mark = data_stamp()
+        result = vals_box(team_id, n_games, 5, mark)
+        if not result:
+            raise HTTPException(status_code=404, detail="팀 데이터 없음")
+        return result
     except HTTPException: raise
     except Exception as e: raise HTTPException(status_code=500, detail=str(e))
 

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import {
   getTeamPatterns,
   getTeamSetpieces,
@@ -41,6 +41,7 @@ interface TeamStanding {
 }
 
 type Tab = 'overview' | 'patterns' | 'setpieces' | 'network' | 'simulation';
+const ANALYSIS_GAMES = 100;
 
 export default function Home() {
   const [standings, setStandings] = useState<TeamStanding[]>([]);
@@ -48,6 +49,7 @@ export default function Home() {
   const [activeTab, setActiveTab] = useState<Tab>('overview');
   const [loading, setLoading] = useState(true);
   const [analysisLoading, setAnalysisLoading] = useState(false);
+  const analysisToken = useRef(0);
 
   const [patterns, setPatterns] = useState<Pattern[]>([]);
   const [setpieces, setSetpieces] = useState<SetPieceRoutine[]>([]);
@@ -124,15 +126,21 @@ export default function Home() {
 
   async function loadAnalysis() {
     if (!selectedTeam) return;
+    const token = analysisToken.current + 1;
+    analysisToken.current = token;
     setAnalysisLoading(true);
+    setTeamAnalysis(null);
+    setNetworkGraph(null);
+    setVaepData(null);
     try {
       const [p, s, n, ph, matchesData] = await Promise.all([
-        getTeamPatterns(selectedTeam.team_id, 100, 5),  // 전체 경기
-        getTeamSetpieces(selectedTeam.team_id, 100),    // 전체 경기
-        getTeamNetwork(selectedTeam.team_id, 100, 3),   // 전체 경기
-        getTeamPhases(selectedTeam.team_id, 100),       // 전체 경기
+        getTeamPatterns(selectedTeam.team_id, ANALYSIS_GAMES, 5),
+        getTeamSetpieces(selectedTeam.team_id, ANALYSIS_GAMES),
+        getTeamNetwork(selectedTeam.team_id, ANALYSIS_GAMES, 3),
+        getTeamPhases(selectedTeam.team_id, ANALYSIS_GAMES),
         matchList(selectedTeam.team_id),
       ]);
+      if (analysisToken.current !== token) return;
       setPatterns(p.patterns);
       setSetpieces(s.routines);
       setHubs(n.hubs);
@@ -143,15 +151,31 @@ export default function Home() {
       setChanceAnalysis(null);
 
       // 팀 분석 로드 (비동기)
-      getTeamAnalysis(selectedTeam.team_id).then(setTeamAnalysis).catch(console.error);
+      getTeamAnalysis(selectedTeam.team_id, ANALYSIS_GAMES)
+        .then((data) => {
+          if (analysisToken.current === token) setTeamAnalysis(data);
+        })
+        .catch((err) => {
+          if (analysisToken.current === token) console.error(err);
+        });
 
       // 네트워크 그래프 로드 (비동기)
-      getNetworkGraph(selectedTeam.team_id, 100).then(data => {
-        setNetworkGraph(data.graph);
-      }).catch(console.error);
+      getNetworkGraph(selectedTeam.team_id, ANALYSIS_GAMES)
+        .then((data) => {
+          if (analysisToken.current === token) setNetworkGraph(data.graph);
+        })
+        .catch((err) => {
+          if (analysisToken.current === token) console.error(err);
+        });
 
       // VAEP 분석 로드 (비동기)
-      getTeamVAEP(selectedTeam.team_id).then(setVaepData).catch(console.error);
+      getTeamVAEP(selectedTeam.team_id, ANALYSIS_GAMES)
+        .then((data) => {
+          if (analysisToken.current === token) setVaepData(data);
+        })
+        .catch((err) => {
+          if (analysisToken.current === token) console.error(err);
+        });
     } catch (err) {
       console.error('Failed to load analysis:', err);
     } finally {
@@ -161,10 +185,13 @@ export default function Home() {
 
   async function loadPhaseReplay(phaseId: number) {
     if (!selectedTeam) return;
+    const token = analysisToken.current;
+    const teamId = selectedTeam.team_id;
     setReplayLoading(true);
     setIsPlaying(false);
     try {
-      const data = await getPhaseReplay(selectedTeam.team_id, phaseId, 5);
+      const data = await getPhaseReplay(teamId, phaseId, ANALYSIS_GAMES);
+      if (analysisToken.current !== token) return;
       setReplayEvents(data.events);
       setSelectedPhase(phaseId);
     } catch (err) {
@@ -281,7 +308,7 @@ export default function Home() {
                   src={getTeamLogo(team.team_name)}
                   alt={team.team_name}
                   className="team-logo"
-                  onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                  onError={(e) => { e.currentTarget.style.visibility = 'hidden'; }}
                 />
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div className="team-name">{team.team_name}</div>
@@ -358,7 +385,7 @@ export default function Home() {
                 src={getTeamLogo(selectedTeam.team_name)}
                 alt={selectedTeam.team_name}
                 className="team-header-logo"
-                onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                onError={(e) => { e.currentTarget.style.visibility = 'hidden'; }}
               />
               <div className="team-header-info">
                 <h1>{selectedTeam.team_name}</h1>
@@ -439,188 +466,204 @@ export default function Home() {
                 )}
 
                 {/* 팀 AI 분석 */}
-                {teamAnalysis && (
-                  <div className="card" style={{ marginTop: 16, border: '1px solid #bfdbfe', background: 'linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%)' }}>
-                    <div className="card-title" style={{ color: '#1e40af', display: 'flex', alignItems: 'center', gap: 8 }}>
-                      <span style={{ fontSize: 18 }}>🤖</span>
-                      AI 팀 분석
-                      <span style={{
-                        marginLeft: 'auto',
-                        background: teamAnalysis.overall_score >= 70 ? '#16a34a' : teamAnalysis.overall_score >= 50 ? '#f59e0b' : '#dc2626',
-                        color: 'white',
-                        padding: '4px 12px',
-                        borderRadius: 12,
-                        fontSize: 14,
-                        fontWeight: 700
-                      }}>
-                        {teamAnalysis.overall_score}점
-                      </span>
-                    </div>
-
-                    <p style={{ fontSize: 14, color: '#1e40af', marginBottom: 16, fontStyle: 'italic' }}>
-                      📊 {teamAnalysis.summary}
-                    </p>
-
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
-                      {/* 강점 */}
-                      <div style={{ background: 'rgba(22, 163, 74, 0.1)', borderRadius: 12, padding: 16 }}>
-                        <h4 style={{ color: '#16a34a', marginBottom: 12, fontSize: 14, fontWeight: 700 }}>💪 강점</h4>
-                        {teamAnalysis.strengths.length > 0 ? teamAnalysis.strengths.map((s, i) => (
-                          <div key={i} style={{ marginBottom: 10 }}>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                              <span style={{ fontWeight: 600, color: '#15803d', fontSize: 13 }}>{s.title}</span>
-                              <span style={{
-                                background: '#16a34a',
-                                color: 'white',
-                                padding: '2px 8px',
-                                borderRadius: 8,
-                                fontSize: 11,
-                                fontWeight: 600
-                              }}>{s.score}</span>
-                            </div>
-                            <p style={{ fontSize: 12, color: '#166534', marginTop: 4 }}>{s.description}</p>
-                          </div>
-                        )) : <p style={{ fontSize: 12, color: '#64748b' }}>분석 중...</p>}
+                <div style={{ marginTop: 16, minHeight: 260 }}>
+                  <div className="card" style={{ border: '1px solid #bfdbfe', background: 'linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%)' }}>
+                    {!teamAnalysis ? (
+                      <div style={{ minHeight: 220, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#64748b' }}>
+                        AI 팀 분석 불러오는 중...
                       </div>
+                    ) : (
+                      <>
+                        <div className="card-title" style={{ color: '#1e40af', display: 'flex', alignItems: 'center', gap: 8 }}>
+                          <span style={{ fontSize: 18 }}>🤖</span>
+                          AI 팀 분석
+                          <span style={{
+                            marginLeft: 'auto',
+                            background: teamAnalysis.overall_score >= 70 ? '#16a34a' : teamAnalysis.overall_score >= 50 ? '#f59e0b' : '#dc2626',
+                            color: 'white',
+                            padding: '4px 12px',
+                            borderRadius: 12,
+                            fontSize: 14,
+                            fontWeight: 700
+                          }}>
+                            {teamAnalysis.overall_score}점
+                          </span>
+                        </div>
 
-                      {/* 약점 */}
-                      <div style={{ background: 'rgba(239, 68, 68, 0.1)', borderRadius: 12, padding: 16 }}>
-                        <h4 style={{ color: '#dc2626', marginBottom: 12, fontSize: 14, fontWeight: 700 }}>⚠️ 개선 필요</h4>
-                        {teamAnalysis.weaknesses.length > 0 ? teamAnalysis.weaknesses.map((w, i) => (
-                          <div key={i} style={{ marginBottom: 10 }}>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                              <span style={{ fontWeight: 600, color: '#b91c1c', fontSize: 13 }}>{w.title}</span>
-                              <span style={{
-                                background: '#dc2626',
-                                color: 'white',
-                                padding: '2px 8px',
-                                borderRadius: 8,
-                                fontSize: 11,
-                                fontWeight: 600
-                              }}>{w.score}</span>
-                            </div>
-                            <p style={{ fontSize: 12, color: '#991b1b', marginTop: 4 }}>{w.description}</p>
-                          </div>
-                        )) : <p style={{ fontSize: 12, color: '#64748b' }}>약점 없음 👍</p>}
-                      </div>
-                    </div>
+                        <p style={{ fontSize: 14, color: '#1e40af', marginBottom: 16, fontStyle: 'italic' }}>
+                          📊 {teamAnalysis.summary}
+                        </p>
 
-                    {/* 인사이트 */}
-                    {teamAnalysis.insights.length > 0 && (
-                      <div style={{ marginTop: 16, padding: 12, background: 'rgba(59, 130, 246, 0.1)', borderRadius: 8 }}>
-                        {teamAnalysis.insights.map((insight, i) => (
-                          <div key={i} style={{ fontSize: 13, color: '#1e40af', marginBottom: i < teamAnalysis.insights.length - 1 ? 6 : 0 }}>
-                            {insight}
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+                          {/* 강점 */}
+                          <div style={{ background: 'rgba(22, 163, 74, 0.1)', borderRadius: 12, padding: 16 }}>
+                            <h4 style={{ color: '#16a34a', marginBottom: 12, fontSize: 14, fontWeight: 700 }}>💪 강점</h4>
+                            {teamAnalysis.strengths.length > 0 ? teamAnalysis.strengths.map((s, i) => (
+                              <div key={i} style={{ marginBottom: 10 }}>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                  <span style={{ fontWeight: 600, color: '#15803d', fontSize: 13 }}>{s.title}</span>
+                                  <span style={{
+                                    background: '#16a34a',
+                                    color: 'white',
+                                    padding: '2px 8px',
+                                    borderRadius: 8,
+                                    fontSize: 11,
+                                    fontWeight: 600
+                                  }}>{s.score}</span>
+                                </div>
+                                <p style={{ fontSize: 12, color: '#166534', marginTop: 4 }}>{s.description}</p>
+                              </div>
+                            )) : <p style={{ fontSize: 12, color: '#64748b' }}>분석 중...</p>}
                           </div>
-                        ))}
-                      </div>
+
+                          {/* 약점 */}
+                          <div style={{ background: 'rgba(239, 68, 68, 0.1)', borderRadius: 12, padding: 16 }}>
+                            <h4 style={{ color: '#dc2626', marginBottom: 12, fontSize: 14, fontWeight: 700 }}>⚠️ 개선 필요</h4>
+                            {teamAnalysis.weaknesses.length > 0 ? teamAnalysis.weaknesses.map((w, i) => (
+                              <div key={i} style={{ marginBottom: 10 }}>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                  <span style={{ fontWeight: 600, color: '#b91c1c', fontSize: 13 }}>{w.title}</span>
+                                  <span style={{
+                                    background: '#dc2626',
+                                    color: 'white',
+                                    padding: '2px 8px',
+                                    borderRadius: 8,
+                                    fontSize: 11,
+                                    fontWeight: 600
+                                  }}>{w.score}</span>
+                                </div>
+                                <p style={{ fontSize: 12, color: '#991b1b', marginTop: 4 }}>{w.description}</p>
+                              </div>
+                            )) : <p style={{ fontSize: 12, color: '#64748b' }}>약점 없음 👍</p>}
+                          </div>
+                        </div>
+
+                        {/* 인사이트 */}
+                        {teamAnalysis.insights.length > 0 && (
+                          <div style={{ marginTop: 16, padding: 12, background: 'rgba(59, 130, 246, 0.1)', borderRadius: 8 }}>
+                            {teamAnalysis.insights.map((insight, i) => (
+                              <div key={i} style={{ fontSize: 13, color: '#1e40af', marginBottom: i < teamAnalysis.insights.length - 1 ? 6 : 0 }}>
+                                {insight}
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </>
                     )}
                   </div>
-                )}
+                </div>
 
                 {/* VAEP 선수 공헌도 랭킹 */}
-                {vaepData && (
-                  <div className="card" style={{ marginTop: 16, border: '1px solid #a5b4fc', background: 'linear-gradient(135deg, #eef2ff 0%, #e0e7ff 100%)' }}>
-                    <div className="card-title" style={{ color: '#4338ca', display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
-                      <span style={{ fontSize: 18 }}>📊</span>
-                      선수 공헌도 (VAEP)
-                      <span style={{
-                        marginLeft: 'auto',
-                        fontSize: 11,
-                        color: '#6366f1',
-                        background: 'rgba(99, 102, 241, 0.15)',
-                        padding: '3px 8px',
-                        borderRadius: 6
-                      }}>
-                        {vaepData.methodology}
-                      </span>
-                    </div>
-
-                    <p style={{ fontSize: 12, color: '#4338ca', marginBottom: 16, fontStyle: 'italic' }}>
-                      총 팀 VAEP: <strong>{vaepData.team_total_vaep.toFixed(1)}</strong>점
-                    </p>
-
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
-                      {/* 전체 상위 5 */}
-                      <div style={{ background: 'white', borderRadius: 10, padding: 12 }}>
-                        <h4 style={{ color: '#4338ca', marginBottom: 10, fontSize: 13, fontWeight: 700 }}>🏆 전체 TOP 5</h4>
-                        {vaepData.top_players.slice(0, 5).map((p, i) => (
-                          <div key={p.player_id} style={{
-                            display: 'flex',
-                            justifyContent: 'space-between',
-                            alignItems: 'center',
-                            padding: '6px 0',
-                            borderBottom: i < 4 ? '1px solid #e0e7ff' : 'none'
+                <div style={{ marginTop: 16, minHeight: 260 }}>
+                  <div className="card" style={{ border: '1px solid #a5b4fc', background: 'linear-gradient(135deg, #eef2ff 0%, #e0e7ff 100%)' }}>
+                    {!vaepData ? (
+                      <div style={{ minHeight: 220, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#64748b' }}>
+                        VAEP 분석 불러오는 중...
+                      </div>
+                    ) : (
+                      <>
+                        <div className="card-title" style={{ color: '#4338ca', display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+                          <span style={{ fontSize: 18 }}>📊</span>
+                          선수 공헌도 (VAEP)
+                          <span style={{
+                            marginLeft: 'auto',
+                            fontSize: 11,
+                            color: '#6366f1',
+                            background: 'rgba(99, 102, 241, 0.15)',
+                            padding: '3px 8px',
+                            borderRadius: 6
                           }}>
-                            <span style={{ fontSize: 12, color: '#1e293b' }}>
-                              <span style={{
-                                display: 'inline-block',
-                                width: 18,
-                                height: 18,
-                                borderRadius: '50%',
-                                background: i === 0 ? '#f59e0b' : i === 1 ? '#94a3b8' : i === 2 ? '#b45309' : '#e2e8f0',
-                                color: i < 3 ? 'white' : '#64748b',
-                                textAlign: 'center',
-                                lineHeight: '18px',
-                                fontSize: 10,
-                                marginRight: 6,
-                                fontWeight: 700
+                            {vaepData.methodology}
+                          </span>
+                        </div>
+
+                        <p style={{ fontSize: 12, color: '#4338ca', marginBottom: 16, fontStyle: 'italic' }}>
+                          총 팀 VAEP: <strong>{vaepData.team_total_vaep.toFixed(1)}</strong>점
+                        </p>
+
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
+                          {/* 전체 상위 5 */}
+                          <div style={{ background: 'white', borderRadius: 10, padding: 12 }}>
+                            <h4 style={{ color: '#4338ca', marginBottom: 10, fontSize: 13, fontWeight: 700 }}>🏆 전체 TOP 5</h4>
+                            {vaepData.top_players.slice(0, 5).map((p, i) => (
+                              <div key={p.player_id} style={{
+                                display: 'flex',
+                                justifyContent: 'space-between',
+                                alignItems: 'center',
+                                padding: '6px 0',
+                                borderBottom: i < 4 ? '1px solid #e0e7ff' : 'none'
                               }}>
-                                {i + 1}
-                              </span>
-                              {p.player_name}
-                            </span>
-                            <span style={{
-                              fontWeight: 700,
-                              color: '#4338ca',
-                              fontSize: 12
-                            }}>
-                              {p.total_vaep.toFixed(1)}
-                            </span>
+                                <span style={{ fontSize: 12, color: '#1e293b' }}>
+                                  <span style={{
+                                    display: 'inline-block',
+                                    width: 18,
+                                    height: 18,
+                                    borderRadius: '50%',
+                                    background: i === 0 ? '#f59e0b' : i === 1 ? '#94a3b8' : i === 2 ? '#b45309' : '#e2e8f0',
+                                    color: i < 3 ? 'white' : '#64748b',
+                                    textAlign: 'center',
+                                    lineHeight: '18px',
+                                    fontSize: 10,
+                                    marginRight: 6,
+                                    fontWeight: 700
+                                  }}>
+                                    {i + 1}
+                                  </span>
+                                  {p.player_name}
+                                </span>
+                                <span style={{
+                                  fontWeight: 700,
+                                  color: '#4338ca',
+                                  fontSize: 12
+                                }}>
+                                  {p.total_vaep.toFixed(1)}
+                                </span>
+                              </div>
+                            ))}
                           </div>
-                        ))}
-                      </div>
 
-                      {/* 공격 상위 5 */}
-                      <div style={{ background: 'white', borderRadius: 10, padding: 12 }}>
-                        <h4 style={{ color: '#dc2626', marginBottom: 10, fontSize: 13, fontWeight: 700 }}>⚽ 공격 TOP 5</h4>
-                        {vaepData.top_offensive.slice(0, 5).map((p, i) => (
-                          <div key={p.player_id} style={{
-                            display: 'flex',
-                            justifyContent: 'space-between',
-                            alignItems: 'center',
-                            padding: '6px 0',
-                            borderBottom: i < 4 ? '1px solid #fecaca' : 'none'
-                          }}>
-                            <span style={{ fontSize: 12, color: '#1e293b' }}>{p.player_name}</span>
-                            <span style={{ fontWeight: 700, color: '#dc2626', fontSize: 12 }}>
-                              {p.offensive_vaep.toFixed(1)}
-                            </span>
+                          {/* 공격 상위 5 */}
+                          <div style={{ background: 'white', borderRadius: 10, padding: 12 }}>
+                            <h4 style={{ color: '#dc2626', marginBottom: 10, fontSize: 13, fontWeight: 700 }}>⚽ 공격 TOP 5</h4>
+                            {vaepData.top_offensive.slice(0, 5).map((p, i) => (
+                              <div key={p.player_id} style={{
+                                display: 'flex',
+                                justifyContent: 'space-between',
+                                alignItems: 'center',
+                                padding: '6px 0',
+                                borderBottom: i < 4 ? '1px solid #fecaca' : 'none'
+                              }}>
+                                <span style={{ fontSize: 12, color: '#1e293b' }}>{p.player_name}</span>
+                                <span style={{ fontWeight: 700, color: '#dc2626', fontSize: 12 }}>
+                                  {p.offensive_vaep.toFixed(1)}
+                                </span>
+                              </div>
+                            ))}
                           </div>
-                        ))}
-                      </div>
 
-                      {/* 수비 상위 5 */}
-                      <div style={{ background: 'white', borderRadius: 10, padding: 12 }}>
-                        <h4 style={{ color: '#059669', marginBottom: 10, fontSize: 13, fontWeight: 700 }}>🛡️ 수비 TOP 5</h4>
-                        {vaepData.top_defensive.slice(0, 5).map((p, i) => (
-                          <div key={p.player_id} style={{
-                            display: 'flex',
-                            justifyContent: 'space-between',
-                            alignItems: 'center',
-                            padding: '6px 0',
-                            borderBottom: i < 4 ? '1px solid #a7f3d0' : 'none'
-                          }}>
-                            <span style={{ fontSize: 12, color: '#1e293b' }}>{p.player_name}</span>
-                            <span style={{ fontWeight: 700, color: '#059669', fontSize: 12 }}>
-                              {p.defensive_vaep.toFixed(1)}
-                            </span>
+                          {/* 수비 상위 5 */}
+                          <div style={{ background: 'white', borderRadius: 10, padding: 12 }}>
+                            <h4 style={{ color: '#059669', marginBottom: 10, fontSize: 13, fontWeight: 700 }}>🛡️ 수비 TOP 5</h4>
+                            {vaepData.top_defensive.slice(0, 5).map((p, i) => (
+                              <div key={p.player_id} style={{
+                                display: 'flex',
+                                justifyContent: 'space-between',
+                                alignItems: 'center',
+                                padding: '6px 0',
+                                borderBottom: i < 4 ? '1px solid #a7f3d0' : 'none'
+                              }}>
+                                <span style={{ fontSize: 12, color: '#1e293b' }}>{p.player_name}</span>
+                                <span style={{ fontWeight: 700, color: '#059669', fontSize: 12 }}>
+                                  {p.defensive_vaep.toFixed(1)}
+                                </span>
+                              </div>
+                            ))}
                           </div>
-                        ))}
-                      </div>
-                    </div>
+                        </div>
+                      </>
+                    )}
                   </div>
-                )}
+                </div>
               </div>
             )}
 
@@ -871,14 +914,18 @@ export default function Home() {
             {activeTab === 'network' && (
               <div style={{ maxHeight: 'calc(100vh - 200px)', overflowY: 'auto', paddingRight: 8 }}>
                 {/* 패스 네트워크 시각화 */}
-                {networkGraph && (
-                  <div style={{ marginBottom: 20 }}>
+                <div style={{ marginBottom: 20, minHeight: 500 }}>
+                  {networkGraph ? (
                     <PassNetwork
                       nodes={networkGraph.nodes}
                       edges={networkGraph.edges}
                     />
-                  </div>
-                )}
+                  ) : (
+                    <div className="card" style={{ minHeight: 500, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#64748b' }}>
+                      네트워크 로딩 중...
+                    </div>
+                  )}
+                </div>
 
                 {/* 허브 선수 카드 */}
                 <div className="pattern-grid">

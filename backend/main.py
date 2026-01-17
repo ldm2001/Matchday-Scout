@@ -4,6 +4,8 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from routers import teams, patterns, setpieces, network, simulation
+from services.data_loader import raw, matches
+from services.vaep_model import vaep_models
 
 app = FastAPI(
     title="Matchday Scout API",
@@ -36,3 +38,14 @@ def root():
 @app.get("/health")
 def health():
     return {"status": "healthy"}
+
+
+# Cache warm for faster first responses
+@app.on_event("startup")
+def ready_box():
+    try:
+        raw()
+        matches()
+        vaep_models()
+    except Exception:
+        pass

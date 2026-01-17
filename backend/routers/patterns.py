@@ -5,12 +5,10 @@ import math
 
 import sys
 sys.path.append('..')
-from services.data_loader import team_events, match_events
+from services.data_loader import match_events, data_stamp
 from services.pattern_analyzer import team_pat, PhaseAnalyzer
-from services.setpiece_analyzer import team_set
-from services.network_analyzer import team_net
-from services.team_analyzer import team_stats
-from services.vaep_model import team_sum
+from services.team_analyzer import note_box
+from services.vaep_model import sum_box
 
 
 def num(value, default=0.0):
@@ -114,17 +112,11 @@ def phase_data(team_id: int, phase_id: int, n_games: int = 5):
 @router.get("/{team_id}/analysis")
 def team_note(team_id: int, n_games: int = 100):
     try:
-        events = match_events(team_id, n_games, include_opponent=True)
-        if len(events) == 0:
+        mark = data_stamp()
+        result = note_box(team_id, n_games, mark)
+        if not result:
             raise HTTPException(status_code=404, detail="이벤트 데이터가 없습니다")
-        
-        patterns_result = team_pat(events, team_id, n_patterns=5)
-        team_df = team_events(team_id, n_games)
-        setpieces_result = team_set(team_df, n_top=4)
-        hubs_result = team_net(team_df, n_hubs=3)
-        hubs = hubs_result.get('hubs', []) if isinstance(hubs_result, dict) else hubs_result
-        
-        return team_stats(team_id, patterns_result, setpieces_result, hubs)
+        return result
     except HTTPException: raise
     except Exception as e: raise HTTPException(status_code=500, detail=str(e))
 
@@ -133,10 +125,10 @@ def team_note(team_id: int, n_games: int = 100):
 @router.get("/{team_id}/vaep")
 def team_vals(team_id: int, n_games: int = 100, n_top: int = 10):
     try:
-        events = match_events(team_id, n_games, include_opponent=True, normalize_mode="none", spadl=False)
-        if len(events) == 0:
+        mark = data_stamp()
+        result = sum_box(team_id, n_games, n_top, mark)
+        if not result:
             raise HTTPException(status_code=404, detail="이벤트 데이터가 없습니다")
-        
-        return {'team_id': team_id, 'n_games_analyzed': n_games, **team_sum(events, team_id, n_top)}
+        return {'team_id': team_id, 'n_games_analyzed': n_games, **result}
     except HTTPException: raise
     except Exception as e: raise HTTPException(status_code=500, detail=str(e))
