@@ -1,6 +1,7 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
+import Image from 'next/image';
 import {
   getTeamPatterns,
   getTeamSetpieces,
@@ -24,6 +25,7 @@ import PitchReplay from '@/components/PitchReplay';
 import KeyMomentPitch from '@/components/KeyMomentPitch';
 import SetpiecePitch from '@/components/SetpiecePitch';
 import PassNetwork from '@/components/PassNetwork';
+import styles from './page.module.css';
 
 interface TeamStanding {
   team_id: number;
@@ -50,6 +52,8 @@ export default function Home() {
   const [loading, setLoading] = useState(true);
   const [analysisLoading, setAnalysisLoading] = useState(false);
   const analysisToken = useRef(0);
+  const simToken = useRef(0);
+  const simKeyRef = useRef<string | null>(null);
 
   const [patterns, setPatterns] = useState<Pattern[]>([]);
   const [setpieces, setSetpieces] = useState<SetPieceRoutine[]>([]);
@@ -63,6 +67,14 @@ export default function Home() {
     optimal_prediction: { win: number; draw: number; lose: number };
     win_improvement: number;
     tactical_suggestions: Array<{ priority: number; tactic: string; reason: string; expected_effect: string; win_prob_change: string }>;
+    scenarios?: Array<{
+      scenario: string;
+      description: string;
+      before: { win: number; draw: number; lose: number };
+      after: { win: number; draw: number; lose: number };
+      win_change: number;
+      recommendation: string;
+    }>;
   } | null>(null);
 
   // Pitch replay state
@@ -81,7 +93,6 @@ export default function Home() {
   const [isPlaying, setIsPlaying] = useState(false);
   const [playbackSpeed, setPlaybackSpeed] = useState(1);
   const [replayLoading, setReplayLoading] = useState(false);
-  const [showReplayModal, setShowReplayModal] = useState(false);
   const [setpieceIndex, setSetpieceIndex] = useState(0);
 
   // Match analysis state
@@ -103,17 +114,7 @@ export default function Home() {
   // VAEP state
   const [vaepData, setVaepData] = useState<VAEPSummary | null>(null);
 
-  useEffect(() => {
-    loadStandings();
-  }, []);
-
-  useEffect(() => {
-    if (selectedTeam) {
-      loadAnalysis();
-    }
-  }, [selectedTeam]);
-
-  async function loadStandings() {
+  const loadStandings = useCallback(async () => {
     try {
       const standingsData = await getTeamsOverview();
       setStandings(standingsData.standings);
@@ -122,66 +123,107 @@ export default function Home() {
     } finally {
       setLoading(false);
     }
-  }
+  }, []);
 
-  async function loadAnalysis() {
+  const loadAnalysis = useCallback(async () => {
     if (!selectedTeam) return;
     const token = analysisToken.current + 1;
     analysisToken.current = token;
     setAnalysisLoading(true);
+    setPatterns([]);
+    setSetpieces([]);
+    setHubs([]);
+    setPhases([]);
+    setSelectedPhase(null);
+    setReplayEvents([]);
+    setRecentMatches([]);
+    setChanceAnalysis(null);
     setTeamAnalysis(null);
     setNetworkGraph(null);
     setVaepData(null);
-    try {
-      const [p, s, n, ph, matchesData] = await Promise.all([
-        getTeamPatterns(selectedTeam.team_id, ANALYSIS_GAMES, 5),
-        getTeamSetpieces(selectedTeam.team_id, ANALYSIS_GAMES),
-        getTeamNetwork(selectedTeam.team_id, ANALYSIS_GAMES, 3),
-        getTeamPhases(selectedTeam.team_id, ANALYSIS_GAMES),
-        matchList(selectedTeam.team_id),
-      ]);
-      if (analysisToken.current !== token) return;
-      setPatterns(p.patterns);
-      setSetpieces(s.routines);
-      setHubs(n.hubs);
-      setPhases(ph.phases);
-      setSelectedPhase(null);
-      setReplayEvents([]);
-      setRecentMatches(matchesData.matches);
-      setChanceAnalysis(null);
+    setSetpieceIndex(0);
 
-      // 팀 분석 로드 (비동기)
-      getTeamAnalysis(selectedTeam.team_id, ANALYSIS_GAMES)
-        .then((data) => {
-          if (analysisToken.current === token) setTeamAnalysis(data);
-        })
-        .catch((err) => {
-          if (analysisToken.current === token) console.error(err);
-        });
+    const teamId = selectedTeam.team_id;
+    const loadStep = async <T,>(task: () => Promise<T>, apply: (data: T) => void) => {
+      try {
+        const data = await task();
+        if (analysisToken.current !== token) return false;
+        apply(data);
+        return true;
+      } catch (err) {
+        if (analysisToken.current === token) console.error(err);
+        return true;
+      }
+    };
 
-      // 네트워크 그래프 로드 (비동기)
-      getNetworkGraph(selectedTeam.team_id, ANALYSIS_GAMES)
-        .then((data) => {
-          if (analysisToken.current === token) setNetworkGraph(data.graph);
-        })
-        .catch((err) => {
-          if (analysisToken.current === token) console.error(err);
-        });
+    if (!(await loadStep(() => getTeamPatterns(teamId, ANALYSIS_GAMES, 5), (data) => {
+      setPatterns(data.patterns);
+    }))) return;
 
-      // VAEP 분석 로드 (비동기)
-      getTeamVAEP(selectedTeam.team_id, ANALYSIS_GAMES)
-        .then((data) => {
-          if (analysisToken.current === token) setVaepData(data);
-        })
-        .catch((err) => {
-          if (analysisToken.current === token) console.error(err);
-        });
-    } catch (err) {
-      console.error('Failed to load analysis:', err);
-    } finally {
-      setAnalysisLoading(false);
+    if (!(await loadStep(() => getTeamSetpieces(teamId, ANALYSIS_GAMES), (data) => {
+      setSetpieces(data.routines);
+    }))) return;
+
+    if (!(await loadStep(() => getTeamNetwork(teamId, ANALYSIS_GAMES, 3), (data) => {
+      setHubs(data.hubs);
+    }))) return;
+
+    if (!(await loadStep(() => getTeamPhases(teamId, ANALYSIS_GAMES), (data) => {
+      setPhases(data.phases);
+    }))) return;
+
+    if (!(await loadStep(() => matchList(teamId), (data) => {
+      setRecentMatches(data.matches);
+    }))) return;
+
+    if (!(await loadStep(() => getTeamAnalysis(teamId, ANALYSIS_GAMES), (data) => {
+      setTeamAnalysis(data);
+    }))) return;
+
+    if (!(await loadStep(() => getNetworkGraph(teamId, ANALYSIS_GAMES), (data) => {
+      setNetworkGraph(data.graph);
+    }))) return;
+
+    await loadStep(() => getTeamVAEP(teamId, ANALYSIS_GAMES), (data) => {
+      setVaepData(data);
+    });
+
+    if (analysisToken.current === token) setAnalysisLoading(false);
+  }, [selectedTeam]);
+
+  useEffect(() => {
+    loadStandings();
+  }, [loadStandings]);
+
+  useEffect(() => {
+    if (selectedTeam) {
+      loadAnalysis();
     }
-  }
+  }, [selectedTeam, loadAnalysis]);
+
+  useEffect(() => {
+    if (!selectedTeam || standings.length === 0) {
+      setOpponent(null);
+      setSimResult(null);
+      simKeyRef.current = null;
+      return;
+    }
+    const candidates = standings.filter((team) => team.team_id !== selectedTeam.team_id);
+    if (candidates.length === 0) {
+      setOpponent(null);
+      setSimResult(null);
+      simKeyRef.current = null;
+      return;
+    }
+    const nextOpponent = candidates.reduce((closest, team) => {
+      const closestDiff = Math.abs(closest.rank - selectedTeam.rank);
+      const teamDiff = Math.abs(team.rank - selectedTeam.rank);
+      return teamDiff < closestDiff ? team : closest;
+    }, candidates[0]);
+    setOpponent((prev) => (prev && prev.team_id === nextOpponent.team_id ? prev : nextOpponent));
+    setSimResult(null);
+    simKeyRef.current = null;
+  }, [selectedTeam, standings]);
 
   async function loadPhaseReplay(phaseId: number) {
     if (!selectedTeam) return;
@@ -258,28 +300,102 @@ export default function Home() {
     { id: 'simulation', label: '프리매치' },
   ];
 
-  async function runSimulation() {
-    if (!selectedTeam || !opponent) return;
+  const runSimulation = useCallback(async (ourTeam: TeamStanding, oppTeam: TeamStanding) => {
+    if (!ourTeam || !oppTeam) return;
+    const token = simToken.current + 1;
+    simToken.current = token;
     setSimLoading(true);
+    setSimResult(null);
     try {
-      const result = await runPreMatchSimulation(selectedTeam.team_id, opponent.team_id, 5);
+      const result = await runPreMatchSimulation(ourTeam.team_id, oppTeam.team_id, 5);
+      if (simToken.current !== token) return;
       setSimResult(result);
     } catch (err) {
       console.error('Simulation failed:', err);
     } finally {
-      setSimLoading(false);
+      if (simToken.current === token) setSimLoading(false);
     }
-  }
+  }, []);
+
+  useEffect(() => {
+    if (!selectedTeam || !opponent || activeTab !== 'simulation') return;
+    const key = `${selectedTeam.team_id}-${opponent.team_id}`;
+    if (simKeyRef.current === key) return;
+    simKeyRef.current = key;
+    runSimulation(selectedTeam, opponent);
+  }, [selectedTeam, opponent, activeTab, runSimulation]);
+
+  const handleOpponentSelect = (team: TeamStanding) => {
+    setOpponent(team);
+    setSimResult(null);
+    simKeyRef.current = null;
+  };
+
+  const toPct = (val: number) => (Number.isFinite(val) ? (val <= 1 ? val * 100 : val) : 0);
+  const fmtPct = (val: number) => `${toPct(val).toFixed(1)}%`;
+
+  const patternCount = analysisLoading && patterns.length === 0 ? '—' : patterns.length;
+  const setpieceCount = analysisLoading && setpieces.length === 0 ? '—' : setpieces.length;
+  const hubCount = analysisLoading && hubs.length === 0 ? '—' : hubs.length;
+  const canRunSim = Boolean(selectedTeam && opponent);
+  const scenarios = simResult?.scenarios ?? [];
+
+  const renderProbBars = (prediction?: { win: number; draw: number; lose: number }) => {
+    if (!prediction) {
+      return (
+        <div className={styles.probHint}>
+          상대팀을 선택하면 예측이 표시됩니다.
+        </div>
+      );
+    }
+    const rows = [
+      { label: '승', value: toPct(prediction.win), color: '#16a34a' },
+      { label: '무', value: toPct(prediction.draw), color: '#f59e0b' },
+      { label: '패', value: toPct(prediction.lose), color: '#ef4444' },
+    ];
+    return (
+      <div className={styles.probRows}>
+        {rows.map((row) => (
+          <div key={row.label} className={styles.probRow}>
+            <div className={styles.probLabel} style={{ color: row.color }}>{row.label}</div>
+            <div className={styles.probTrack}>
+              <div
+                className={styles.probFill}
+                style={{
+                  width: `${Math.min(Math.max(row.value, 0), 100)}%`,
+                  background: row.color,
+                }}
+              />
+            </div>
+            <div className={styles.probValue}>
+              {row.value.toFixed(1)}%
+            </div>
+          </div>
+        ))}
+      </div>
+    );
+  };
+
+  const renderProbSkeleton = () => (
+    <div className={styles.probRows}>
+      {[0, 1, 2].map((idx) => (
+        <div key={idx} className={styles.probSkeletonRow} />
+      ))}
+    </div>
+  );
 
   return (
     <div className="layout">
       {/* 사이드바 - 순위표 */}
       <aside className="sidebar">
         <div className="logo">
-          <img
+          <Image
             src="/logos/K 리그.png"
             alt="K League"
             className="kleague-logo"
+            width={40}
+            height={40}
+            priority
           />
           <div>
             <div className="logo-text">K LEAGUE</div>
@@ -304,13 +420,15 @@ export default function Home() {
                 <span className={`rank ${getRankClass(team.rank, standings.length)}`}>
                   {team.rank}
                 </span>
-                <img
+                <Image
                   src={getTeamLogo(team.team_name)}
                   alt={team.team_name}
                   className="team-logo"
+                  width={24}
+                  height={24}
                   onError={(e) => { e.currentTarget.style.visibility = 'hidden'; }}
                 />
-                <div style={{ flex: 1, minWidth: 0 }}>
+                <div className={styles.teamRowInfo}>
                   <div className="team-name">{team.team_name}</div>
                   <div className="form-badges">
                     {team.form.map((f, i) => (
@@ -373,18 +491,15 @@ export default function Home() {
               </div>
             </div>
           </div>
-        ) : analysisLoading ? (
-          <div className="loading">
-            <div className="spinner" />
-            <p style={{ marginTop: 16, color: '#64748b' }}>{selectedTeam.team_name} 분석 중...</p>
-          </div>
         ) : (
           <>
             <div className="team-header">
-              <img
+              <Image
                 src={getTeamLogo(selectedTeam.team_name)}
                 alt={selectedTeam.team_name}
                 className="team-header-logo"
+                width={64}
+                height={64}
                 onError={(e) => { e.currentTarget.style.visibility = 'hidden'; }}
               />
               <div className="team-header-info">
@@ -394,6 +509,12 @@ export default function Home() {
                 </p>
               </div>
             </div>
+            {analysisLoading && (
+              <div className={styles.analysisStatus}>
+                <span className={`spinner ${styles.spinnerSmall}`} />
+                데이터 업데이트 중...
+              </div>
+            )}
 
             <div className="tabs">
               {tabs.map((tab) => (
@@ -408,18 +529,18 @@ export default function Home() {
             </div>
 
             {activeTab === 'overview' && (
-              <div style={{ maxHeight: 'calc(100vh - 200px)', overflowY: 'auto', paddingRight: 8 }}>
+              <div className={styles.overviewScroll}>
                 <div className="stats-grid">
                   <div className="stat-card">
-                    <div className="stat-value red">{patterns.length}</div>
+                    <div className="stat-value red">{patternCount}</div>
                     <div className="stat-label">공격 패턴</div>
                   </div>
                   <div className="stat-card">
-                    <div className="stat-value blue">{setpieces.length}</div>
+                    <div className="stat-value blue">{setpieceCount}</div>
                     <div className="stat-label">세트피스</div>
                   </div>
                   <div className="stat-card">
-                    <div className="stat-value green">{hubs.length}</div>
+                    <div className="stat-value green">{hubCount}</div>
                     <div className="stat-label">빌드업 허브</div>
                   </div>
                 </div>
@@ -427,10 +548,10 @@ export default function Home() {
                 {patterns[0] && (
                   <div className="card">
                     <div className="card-title">🎯 가장 위험한 패턴</div>
-                    <div className="pattern-grid" style={{ gridTemplateColumns: '1fr' }}>
-                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16 }}>
+                    <div className={`pattern-grid ${styles.patternGridSingle}`}>
+                      <div className={styles.patternStatGrid}>
                         <div>
-                          <div className="pattern-stat-value" style={{ color: '#e31837', fontSize: 24 }}>
+                          <div className={`pattern-stat-value ${styles.patternHighlight}`}>
                             {(patterns[0].shot_conversion_rate * 100).toFixed(1)}%
                           </div>
                           <div className="pattern-stat-label">슈팅 전환율</div>
@@ -466,83 +587,66 @@ export default function Home() {
                 )}
 
                 {/* 팀 AI 분석 */}
-                <div style={{ marginTop: 16, minHeight: 260 }}>
-                  <div className="card" style={{ border: '1px solid #bfdbfe', background: 'linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%)' }}>
+                <div className={styles.analysisSection}>
+                  <div className={`card ${styles.teamAnalysisCard}`}>
                     {!teamAnalysis ? (
-                      <div style={{ minHeight: 220, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#64748b' }}>
+                      <div className={styles.panelPlaceholder}>
                         AI 팀 분석 불러오는 중...
                       </div>
                     ) : (
                       <>
-                        <div className="card-title" style={{ color: '#1e40af', display: 'flex', alignItems: 'center', gap: 8 }}>
-                          <span style={{ fontSize: 18 }}>🤖</span>
+                        <div className={`card-title ${styles.teamAnalysisTitle}`}>
+                          <span className={styles.teamAnalysisIcon}>🤖</span>
                           AI 팀 분석
-                          <span style={{
-                            marginLeft: 'auto',
-                            background: teamAnalysis.overall_score >= 70 ? '#16a34a' : teamAnalysis.overall_score >= 50 ? '#f59e0b' : '#dc2626',
-                            color: 'white',
-                            padding: '4px 12px',
-                            borderRadius: 12,
-                            fontSize: 14,
-                            fontWeight: 700
-                          }}>
+                          <span
+                            className={styles.teamAnalysisBadge}
+                            style={{
+                              background: teamAnalysis.overall_score >= 70 ? '#16a34a' : teamAnalysis.overall_score >= 50 ? '#f59e0b' : '#dc2626',
+                            }}
+                          >
                             {teamAnalysis.overall_score}점
                           </span>
                         </div>
 
-                        <p style={{ fontSize: 14, color: '#1e40af', marginBottom: 16, fontStyle: 'italic' }}>
+                        <p className={styles.teamAnalysisSummary}>
                           📊 {teamAnalysis.summary}
                         </p>
 
-                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+                        <div className={styles.analysisSplitGrid}>
                           {/* 강점 */}
-                          <div style={{ background: 'rgba(22, 163, 74, 0.1)', borderRadius: 12, padding: 16 }}>
-                            <h4 style={{ color: '#16a34a', marginBottom: 12, fontSize: 14, fontWeight: 700 }}>💪 강점</h4>
+                          <div className={styles.strengthCard}>
+                            <h4 className={styles.strengthTitle}>💪 강점</h4>
                             {teamAnalysis.strengths.length > 0 ? teamAnalysis.strengths.map((s, i) => (
-                              <div key={i} style={{ marginBottom: 10 }}>
-                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                  <span style={{ fontWeight: 600, color: '#15803d', fontSize: 13 }}>{s.title}</span>
-                                  <span style={{
-                                    background: '#16a34a',
-                                    color: 'white',
-                                    padding: '2px 8px',
-                                    borderRadius: 8,
-                                    fontSize: 11,
-                                    fontWeight: 600
-                                  }}>{s.score}</span>
+                              <div key={i} className={styles.analysisItem}>
+                                <div className={styles.analysisItemHead}>
+                                  <span className={styles.strengthItemTitle}>{s.title}</span>
+                                  <span className={styles.strengthScore}>{s.score}</span>
                                 </div>
-                                <p style={{ fontSize: 12, color: '#166534', marginTop: 4 }}>{s.description}</p>
+                                <p className={styles.strengthDesc}>{s.description}</p>
                               </div>
-                            )) : <p style={{ fontSize: 12, color: '#64748b' }}>분석 중...</p>}
+                            )) : <p className={styles.analysisEmpty}>분석 중...</p>}
                           </div>
 
                           {/* 약점 */}
-                          <div style={{ background: 'rgba(239, 68, 68, 0.1)', borderRadius: 12, padding: 16 }}>
-                            <h4 style={{ color: '#dc2626', marginBottom: 12, fontSize: 14, fontWeight: 700 }}>⚠️ 개선 필요</h4>
+                          <div className={styles.weaknessCard}>
+                            <h4 className={styles.weaknessTitle}>⚠️ 개선 필요</h4>
                             {teamAnalysis.weaknesses.length > 0 ? teamAnalysis.weaknesses.map((w, i) => (
-                              <div key={i} style={{ marginBottom: 10 }}>
-                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                  <span style={{ fontWeight: 600, color: '#b91c1c', fontSize: 13 }}>{w.title}</span>
-                                  <span style={{
-                                    background: '#dc2626',
-                                    color: 'white',
-                                    padding: '2px 8px',
-                                    borderRadius: 8,
-                                    fontSize: 11,
-                                    fontWeight: 600
-                                  }}>{w.score}</span>
+                              <div key={i} className={styles.analysisItem}>
+                                <div className={styles.analysisItemHead}>
+                                  <span className={styles.weaknessItemTitle}>{w.title}</span>
+                                  <span className={styles.weaknessScore}>{w.score}</span>
                                 </div>
-                                <p style={{ fontSize: 12, color: '#991b1b', marginTop: 4 }}>{w.description}</p>
+                                <p className={styles.weaknessDesc}>{w.description}</p>
                               </div>
-                            )) : <p style={{ fontSize: 12, color: '#64748b' }}>약점 없음 👍</p>}
+                            )) : <p className={styles.analysisEmpty}>약점 없음 👍</p>}
                           </div>
                         </div>
 
                         {/* 인사이트 */}
                         {teamAnalysis.insights.length > 0 && (
-                          <div style={{ marginTop: 16, padding: 12, background: 'rgba(59, 130, 246, 0.1)', borderRadius: 8 }}>
+                          <div className={styles.insightsBox}>
                             {teamAnalysis.insights.map((insight, i) => (
-                              <div key={i} style={{ fontSize: 13, color: '#1e40af', marginBottom: i < teamAnalysis.insights.length - 1 ? 6 : 0 }}>
+                              <div key={i} className={styles.insightItem}>
                                 {insight}
                               </div>
                             ))}
@@ -554,46 +658,33 @@ export default function Home() {
                 </div>
 
                 {/* VAEP 선수 공헌도 랭킹 */}
-                <div style={{ marginTop: 16, minHeight: 260 }}>
-                  <div className="card" style={{ border: '1px solid #a5b4fc', background: 'linear-gradient(135deg, #eef2ff 0%, #e0e7ff 100%)' }}>
+                <div className={styles.vaepSection}>
+                  <div className={`card ${styles.vaepCard}`}>
                     {!vaepData ? (
-                      <div style={{ minHeight: 220, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#64748b' }}>
+                      <div className={styles.panelPlaceholder}>
                         VAEP 분석 불러오는 중...
                       </div>
                     ) : (
                       <>
-                        <div className="card-title" style={{ color: '#4338ca', display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
-                          <span style={{ fontSize: 18 }}>📊</span>
+                        <div className={`card-title ${styles.vaepTitle}`}>
+                          <span className={styles.vaepIcon}>📊</span>
                           선수 공헌도 (VAEP)
-                          <span style={{
-                            marginLeft: 'auto',
-                            fontSize: 11,
-                            color: '#6366f1',
-                            background: 'rgba(99, 102, 241, 0.15)',
-                            padding: '3px 8px',
-                            borderRadius: 6
-                          }}>
+                          <span className={styles.vaepBadge}>
                             {vaepData.methodology}
                           </span>
                         </div>
 
-                        <p style={{ fontSize: 12, color: '#4338ca', marginBottom: 16, fontStyle: 'italic' }}>
+                        <p className={styles.vaepSummary}>
                           총 팀 VAEP: <strong>{vaepData.team_total_vaep.toFixed(1)}</strong>점
                         </p>
 
-                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
+                        <div className={styles.vaepGrid}>
                           {/* 전체 상위 5 */}
-                          <div style={{ background: 'white', borderRadius: 10, padding: 12 }}>
-                            <h4 style={{ color: '#4338ca', marginBottom: 10, fontSize: 13, fontWeight: 700 }}>🏆 전체 TOP 5</h4>
+                          <div className={styles.vaepListCard}>
+                            <h4 className={styles.vaepListTitlePrimary}>🏆 전체 TOP 5</h4>
                             {vaepData.top_players.slice(0, 5).map((p, i) => (
-                              <div key={p.player_id} style={{
-                                display: 'flex',
-                                justifyContent: 'space-between',
-                                alignItems: 'center',
-                                padding: '6px 0',
-                                borderBottom: i < 4 ? '1px solid #e0e7ff' : 'none'
-                              }}>
-                                <span style={{ fontSize: 12, color: '#1e293b' }}>
+                              <div key={p.player_id} className={styles.vaepItemPrimary}>
+                                <span className={styles.vaepPlayerName}>
                                   <span style={{
                                     display: 'inline-block',
                                     width: 18,
@@ -611,11 +702,7 @@ export default function Home() {
                                   </span>
                                   {p.player_name}
                                 </span>
-                                <span style={{
-                                  fontWeight: 700,
-                                  color: '#4338ca',
-                                  fontSize: 12
-                                }}>
+                                <span className={styles.vaepScorePrimary}>
                                   {p.total_vaep.toFixed(1)}
                                 </span>
                               </div>
@@ -623,18 +710,12 @@ export default function Home() {
                           </div>
 
                           {/* 공격 상위 5 */}
-                          <div style={{ background: 'white', borderRadius: 10, padding: 12 }}>
-                            <h4 style={{ color: '#dc2626', marginBottom: 10, fontSize: 13, fontWeight: 700 }}>⚽ 공격 TOP 5</h4>
-                            {vaepData.top_offensive.slice(0, 5).map((p, i) => (
-                              <div key={p.player_id} style={{
-                                display: 'flex',
-                                justifyContent: 'space-between',
-                                alignItems: 'center',
-                                padding: '6px 0',
-                                borderBottom: i < 4 ? '1px solid #fecaca' : 'none'
-                              }}>
-                                <span style={{ fontSize: 12, color: '#1e293b' }}>{p.player_name}</span>
-                                <span style={{ fontWeight: 700, color: '#dc2626', fontSize: 12 }}>
+                          <div className={styles.vaepListCard}>
+                            <h4 className={styles.vaepListTitleOff}>⚽ 공격 TOP 5</h4>
+                            {vaepData.top_offensive.slice(0, 5).map((p) => (
+                              <div key={p.player_id} className={styles.vaepItemOff}>
+                                <span className={styles.vaepPlayerName}>{p.player_name}</span>
+                                <span className={styles.vaepScoreOff}>
                                   {p.offensive_vaep.toFixed(1)}
                                 </span>
                               </div>
@@ -642,18 +723,12 @@ export default function Home() {
                           </div>
 
                           {/* 수비 상위 5 */}
-                          <div style={{ background: 'white', borderRadius: 10, padding: 12 }}>
-                            <h4 style={{ color: '#059669', marginBottom: 10, fontSize: 13, fontWeight: 700 }}>🛡️ 수비 TOP 5</h4>
-                            {vaepData.top_defensive.slice(0, 5).map((p, i) => (
-                              <div key={p.player_id} style={{
-                                display: 'flex',
-                                justifyContent: 'space-between',
-                                alignItems: 'center',
-                                padding: '6px 0',
-                                borderBottom: i < 4 ? '1px solid #a7f3d0' : 'none'
-                              }}>
-                                <span style={{ fontSize: 12, color: '#1e293b' }}>{p.player_name}</span>
-                                <span style={{ fontWeight: 700, color: '#059669', fontSize: 12 }}>
+                          <div className={styles.vaepListCard}>
+                            <h4 className={styles.vaepListTitleDef}>🛡️ 수비 TOP 5</h4>
+                            {vaepData.top_defensive.slice(0, 5).map((p) => (
+                              <div key={p.player_id} className={styles.vaepItemDef}>
+                                <span className={styles.vaepPlayerName}>{p.player_name}</span>
+                                <span className={styles.vaepScoreDef}>
                                   {p.defensive_vaep.toFixed(1)}
                                 </span>
                               </div>
@@ -670,43 +745,27 @@ export default function Home() {
             {activeTab === 'patterns' && (
               <div>
                 {/* 피치 시각화 섹션 */}
-                <div className="card" style={{ marginBottom: 20 }}>
-                  <div className="card-title" style={{ color: '#3b82f6', marginBottom: 16 }}>
+                <div className={`card ${styles.patternsCard}`}>
+                  <div className={`card-title ${styles.patternsTitle}`}>
                     ⚽ 경기 상황 리플레이
                   </div>
 
                   {/* Phase 선택 - 버튼 스타일 */}
-                  <div style={{ marginBottom: 20 }}>
-                    <p style={{ color: '#c9d1d9', fontSize: 14, marginBottom: 12, fontWeight: 500 }}>
+                  <div className={styles.phaseSection}>
+                    <p className={styles.phaseLabel}>
                       공격 Phase 선택:
                     </p>
-                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
+                    <div className={styles.phaseList}>
                       {phases.slice(0, 10).map((ph, idx) => (
                         <button
                           key={ph.phase_id}
                           onClick={() => loadPhaseReplay(ph.phase_id)}
-                          style={{
-                            padding: '12px 20px',
-                            background: selectedPhase === ph.phase_id
-                              ? 'linear-gradient(135deg, #3b82f6, #2563eb)'
-                              : 'rgba(30, 41, 59, 0.8)',
-                            border: selectedPhase === ph.phase_id
-                              ? '2px solid #60a5fa'
-                              : '1px solid #374151',
-                            borderRadius: 10,
-                            cursor: 'pointer',
-                            color: selectedPhase === ph.phase_id ? 'white' : '#cbd5e1',
-                            fontWeight: selectedPhase === ph.phase_id ? 600 : 400,
-                            boxShadow: selectedPhase === ph.phase_id
-                              ? '0 4px 12px rgba(59, 130, 246, 0.4)'
-                              : 'none',
-                            transition: 'all 0.2s ease',
-                          }}
+                          className={`${styles.phaseButton} ${selectedPhase === ph.phase_id ? styles.phaseButtonActive : styles.phaseButtonInactive}`}
                         >
-                          <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 4 }}>
+                          <div className={styles.phaseTitle}>
                             Phase {idx + 1} ⚽
                           </div>
-                          <div style={{ fontSize: 12, opacity: 0.9 }}>
+                          <div className={styles.phaseMeta}>
                             패스 {ph.passes}회 · {Math.round(ph.duration)}초
                           </div>
                         </button>
@@ -715,11 +774,11 @@ export default function Home() {
                   </div>
 
                   {/* 피치 리플레이 + 패턴 가로 배치 */}
-                  <div style={{ display: 'flex', gap: 20, alignItems: 'flex-start' }}>
+                  <div className={styles.patternLayout}>
                     {/* 피치 리플레이 */}
-                    <div style={{ flex: 1, minWidth: 0 }}>
+                    <div className={styles.patternReplay}>
                       {replayLoading ? (
-                        <div style={{ textAlign: 'center', padding: 20, color: '#60a5fa' }}>⏳ 로딩 중...</div>
+                        <div className={styles.patternLoading}>⏳ 로딩 중...</div>
                       ) : replayEvents.length > 0 ? (
                         <PitchReplay
                           events={replayEvents}
@@ -729,15 +788,9 @@ export default function Home() {
                           onSpeedChange={setPlaybackSpeed}
                         />
                       ) : (
-                        <div style={{
-                          textAlign: 'center',
-                          padding: 30,
-                          background: 'rgba(30, 41, 59, 0.6)',
-                          borderRadius: 10,
-                          border: '2px dashed #374151',
-                        }}>
-                          <div style={{ fontSize: 24, marginBottom: 6 }}>🎬</div>
-                          <p style={{ color: '#60a5fa', fontWeight: 500, fontSize: 13 }}>
+                        <div className={styles.patternEmpty}>
+                          <div className={styles.patternEmptyIcon}>🎬</div>
+                          <p className={styles.patternEmptyText}>
                             위에서 Phase를 선택하세요
                           </p>
                         </div>
@@ -745,48 +798,20 @@ export default function Home() {
                     </div>
 
                     {/* 패턴 통계 - 컴팩트 세로 배치 */}
-                    <div style={{
-                      width: 130,
-                      flexShrink: 0,
-                      background: 'linear-gradient(180deg, #f0fdf4, #dcfce7)',
-                      borderRadius: 12,
-                      padding: 12,
-                      border: '1px solid #bbf7d0'
-                    }}>
-                      <div style={{
-                        fontSize: 11,
-                        fontWeight: 700,
-                        color: '#16a34a',
-                        marginBottom: 10,
-                        textAlign: 'center'
-                      }}>
+                    <div className={styles.patternSide}>
+                      <div className={styles.patternSideTitle}>
                         📊 패턴 TOP 5
                       </div>
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                      <div className={styles.patternSideList}>
                         {patterns.slice(0, 5).map((pattern, i) => (
-                          <div key={pattern.cluster_id} style={{
-                            padding: '6px 8px',
-                            background: 'white',
-                            borderRadius: 6,
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'space-between',
-                            boxShadow: '0 1px 2px rgba(0,0,0,0.05)'
-                          }}>
-                            <span style={{
-                              fontSize: 10,
-                              color: '#64748b',
-                              fontWeight: 600,
-                              background: '#f1f5f9',
-                              padding: '2px 5px',
-                              borderRadius: 3
-                            }}>
+                          <div key={pattern.cluster_id} className={styles.patternSideItem}>
+                            <span className={styles.patternSideRank}>
                               #{i + 1}
                             </span>
-                            <span style={{ fontSize: 14, fontWeight: 700, color: '#16a34a' }}>
+                            <span className={styles.patternSideRate}>
                               {(pattern.shot_conversion_rate * 100).toFixed(0)}%
                             </span>
-                            <span style={{ fontSize: 9, color: '#94a3b8' }}>
+                            <span className={styles.patternSideFreq}>
                               {pattern.frequency}회
                             </span>
                           </div>
@@ -798,38 +823,30 @@ export default function Home() {
               </div>
             )}
 
-            {activeTab === 'setpieces' && setpieces.length > 0 && (
-              <div style={{ background: 'white', borderRadius: 12, padding: 20, border: '1px solid #e2e8f0' }}>
+            {activeTab === 'setpieces' && (
+              setpieces.length > 0 ? (
+              <div className={styles.setpieceCard}>
                 {/* 상단 네비게이션 */}
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+                <div className={styles.setpieceNav}>
                   <button
                     onClick={() => setSetpieceIndex(Math.max(0, setpieceIndex - 1))}
                     disabled={setpieceIndex === 0}
-                    style={{
-                      width: 40, height: 40, borderRadius: 8, border: 'none',
-                      background: setpieceIndex === 0 ? '#f1f5f9' : '#3b82f6',
-                      color: setpieceIndex === 0 ? '#94a3b8' : 'white',
-                      cursor: setpieceIndex === 0 ? 'not-allowed' : 'pointer',
-                      fontSize: 18, fontWeight: 700
-                    }}
+                    className={`${styles.setpieceNavButton} ${setpieceIndex === 0 ? styles.setpieceNavButtonDisabled : styles.setpieceNavButtonActive}`}
                   >
                     ←
                   </button>
 
                   {/* 현재 세트피스 정보 */}
-                  <div style={{ textAlign: 'center' }}>
-                    <span style={{
-                      fontSize: 12, fontWeight: 600,
-                      color: setpieces[setpieceIndex]?.type.includes('Corner') ? '#f59e0b' : '#3b82f6',
-                      background: setpieces[setpieceIndex]?.type.includes('Corner') ? '#fef3c7' : '#dbeafe',
-                      padding: '4px 12px', borderRadius: 6
-                    }}>
+                  <div className={styles.setpieceInfo}>
+                    <span
+                      className={`${styles.setpieceTag} ${setpieces[setpieceIndex]?.type.includes('Corner') ? styles.setpieceTagCorner : styles.setpieceTagFree}`}
+                    >
                       {setpieces[setpieceIndex]?.type.includes('Corner') ? '코너킥' : '프리킥'}
                     </span>
-                    <span style={{ marginLeft: 12, fontSize: 22, fontWeight: 700, color: '#16a34a' }}>
+                    <span className={styles.setpieceRate}>
                       슈팅 전환율 {(setpieces[setpieceIndex]?.shot_rate * 100).toFixed(0)}%
                     </span>
-                    <span style={{ marginLeft: 16, fontSize: 14, color: '#64748b' }}>
+                    <span className={styles.setpieceIndex}>
                       {setpieceIndex + 1} / {setpieces.length}
                     </span>
                   </div>
@@ -837,44 +854,31 @@ export default function Home() {
                   <button
                     onClick={() => setSetpieceIndex(Math.min(setpieces.length - 1, setpieceIndex + 1))}
                     disabled={setpieceIndex === setpieces.length - 1}
-                    style={{
-                      width: 40, height: 40, borderRadius: 8, border: 'none',
-                      background: setpieceIndex === setpieces.length - 1 ? '#f1f5f9' : '#3b82f6',
-                      color: setpieceIndex === setpieces.length - 1 ? '#94a3b8' : 'white',
-                      cursor: setpieceIndex === setpieces.length - 1 ? 'not-allowed' : 'pointer',
-                      fontSize: 18, fontWeight: 700
-                    }}
+                    className={`${styles.setpieceNavButton} ${setpieceIndex === setpieces.length - 1 ? styles.setpieceNavButtonDisabled : styles.setpieceNavButtonActive}`}
                   >
                     →
                   </button>
                 </div>
 
                 {/* 피치 시각화 */}
-                <div style={{ display: 'flex', justifyContent: 'center' }}>
+                <div className={styles.setpiecePitch}>
                   <SetpiecePitch routine={setpieces[setpieceIndex]} />
                 </div>
 
                 {/* 하단 통계 */}
-                <div style={{
-                  display: 'flex',
-                  justifyContent: 'center',
-                  gap: 40,
-                  marginTop: 16,
-                  padding: '12px 0',
-                  borderTop: '1px solid #e2e8f0'
-                }}>
-                  <div style={{ textAlign: 'center' }}>
-                    <div style={{ fontSize: 24, fontWeight: 700, color: '#1e293b' }}>{setpieces[setpieceIndex]?.frequency}</div>
-                    <div style={{ fontSize: 12, color: '#64748b' }}>발생 횟수</div>
+                <div className={styles.setpieceStats}>
+                  <div className={styles.setpieceStat}>
+                    <div className={styles.setpieceStatValue}>{setpieces[setpieceIndex]?.frequency}</div>
+                    <div className={styles.setpieceStatLabel}>발생 횟수</div>
                   </div>
-                  <div style={{ textAlign: 'center' }}>
-                    <div style={{ fontSize: 24, fontWeight: 700, color: '#1e293b' }}>
+                  <div className={styles.setpieceStat}>
+                    <div className={styles.setpieceStatValue}>
                       {setpieces[setpieceIndex]?.swing_type === 'inswing' ? '인스윙' : '아웃스윙'}
                     </div>
-                    <div style={{ fontSize: 12, color: '#64748b' }}>킥 타입</div>
+                    <div className={styles.setpieceStatLabel}>킥 타입</div>
                   </div>
-                  <div style={{ textAlign: 'center' }}>
-                    <div style={{ fontSize: 24, fontWeight: 700, color: '#1e293b' }}>
+                  <div className={styles.setpieceStat}>
+                    <div className={styles.setpieceStatValue}>
                       {(() => {
                         const zone = setpieces[setpieceIndex]?.primary_zone || '';
                         const zoneMap: Record<string, string> = {
@@ -893,35 +897,33 @@ export default function Home() {
                         return zoneMap[zone] || zone;
                       })()}
                     </div>
-                    <div style={{ fontSize: 12, color: '#64748b' }}>타겟존</div>
+                    <div className={styles.setpieceStatLabel}>타겟존</div>
                   </div>
                 </div>
 
                 {/* 수비 제안 */}
-                <div style={{
-                  marginTop: 12,
-                  padding: 12,
-                  background: 'rgba(239, 68, 68, 0.1)',
-                  borderRadius: 8,
-                  color: '#dc2626',
-                  fontSize: 13
-                }}>
+                <div className={styles.setpieceSuggest}>
                   💡 {setpieces[setpieceIndex]?.defense_suggestion}
                 </div>
               </div>
+              ) : (
+                <div className={`card ${styles.setpieceEmpty}`}>
+                  {analysisLoading ? '세트피스 데이터를 불러오는 중...' : '세트피스 데이터가 없습니다.'}
+                </div>
+              )
             )}
 
             {activeTab === 'network' && (
-              <div style={{ maxHeight: 'calc(100vh - 200px)', overflowY: 'auto', paddingRight: 8 }}>
+              <div className={styles.networkScroll}>
                 {/* 패스 네트워크 시각화 */}
-                <div style={{ marginBottom: 20, minHeight: 500 }}>
+                <div className={styles.networkChart}>
                   {networkGraph ? (
                     <PassNetwork
                       nodes={networkGraph.nodes}
                       edges={networkGraph.edges}
                     />
                   ) : (
-                    <div className="card" style={{ minHeight: 500, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#64748b' }}>
+                    <div className={`card ${styles.networkPlaceholder}`}>
                       네트워크 로딩 중...
                     </div>
                   )}
@@ -933,22 +935,22 @@ export default function Home() {
                     <div key={hub.player_id} className="card">
                       <div className="hub-card">
                         <div className="hub-avatar">{hub.position}</div>
-                        <div className="hub-info" style={{ flex: 1 }}>
+                        <div className={`hub-info ${styles.hubInfo}`}>
                           <h4>{hub.player_name}</h4>
                           <p>{hub.main_position} • 허브 점수 {(hub.hub_score * 100).toFixed(0)}</p>
                         </div>
                       </div>
-                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginTop: 16 }}>
-                        <div style={{ textAlign: 'center', padding: 12, background: 'rgba(35,134,54,0.1)', borderRadius: 6 }}>
-                          <div style={{ fontSize: 20, fontWeight: 700, color: '#238636' }}>{hub.passes_received}</div>
-                          <div style={{ fontSize: 11, color: '#8b949e' }}>패스 수신</div>
+                      <div className={styles.hubStatsGrid}>
+                        <div className={`${styles.hubStat} ${styles.hubStatReceive}`}>
+                          <div className={styles.hubStatValueReceive}>{hub.passes_received}</div>
+                          <div className={styles.hubStatLabel}>패스 수신</div>
                         </div>
-                        <div style={{ textAlign: 'center', padding: 12, background: 'rgba(31,111,235,0.1)', borderRadius: 6 }}>
-                          <div style={{ fontSize: 20, fontWeight: 700, color: '#1f6feb' }}>{hub.passes_made}</div>
-                          <div style={{ fontSize: 11, color: '#8b949e' }}>패스 시도</div>
+                        <div className={`${styles.hubStat} ${styles.hubStatPass}`}>
+                          <div className={styles.hubStatValuePass}>{hub.passes_made}</div>
+                          <div className={styles.hubStatLabel}>패스 시도</div>
                         </div>
                       </div>
-                      <p style={{ fontSize: 12, marginTop: 12, padding: 10, background: 'rgba(227,24,55,0.1)', borderRadius: 6, color: '#e31837' }}>
+                      <p className={styles.hubImpact}>
                         {hub.disruption_impact?.description || '압박 타겟'}
                       </p>
                     </div>
@@ -958,140 +960,280 @@ export default function Home() {
             )}
 
             {activeTab === 'simulation' && (
-              <div style={{ padding: '0 4px' }}>
-                {/* 1. 매치 리스트 뷰 (선택된 매치가 없을 때) */}
-                {!selectedMatch && (
-                  <div className="fade-in">
-                    <div style={{ marginBottom: 20 }}>
-                      <div style={{ fontSize: 18, fontWeight: 700, color: '#f59e0b', marginBottom: 6 }}>
-                        🔍 경기 분석 - 놓친 찬스
-                      </div>
-                      <p style={{ fontSize: 14, color: '#64748b' }}>
-                        분석할 경기를 선택하세요. 패배/무승부 경기에서 <strong style={{ color: '#22c55e' }}>승리할 수 있었던 기회</strong>를 찾아냅니다.
-                      </p>
+              <div className={styles.preMatchSection}>
+                <div
+                  className={`card ${styles.preMatchCard}`}
+                >
+                  <div className={styles.preMatchHeader}>
+                    <div>
+                      <div className={styles.preMatchTitle}>프리매치 예측</div>
+                      <div className={styles.preMatchSubtitle}>최근 {ANALYSIS_GAMES}경기 기반 시뮬레이션</div>
                     </div>
-
-                    <div style={{ display: 'grid', gap: 12, maxHeight: 'calc(100vh - 280px)', overflowY: 'auto', paddingRight: 8 }}>
-                      {recentMatches
-                        .filter((match) => {
-                          if (!selectedTeam) return true;
-                          const teamId = selectedTeam.team_id;
-                          const isHomeTeam = match.home_team_id === teamId;
-                          const isAwayTeam = match.away_team_id === teamId;
-                          if (match.result === 'draw') return true;
-                          if (isHomeTeam && match.result === 'home_win') return false;
-                          if (isAwayTeam && match.result === 'away_win') return false;
-                          return true;
-                        })
-                        .map((match) => {
-                          const isDraw = match.result === 'draw';
-                          return (
-                            <button
-                              key={match.game_id}
-                              onClick={() => loadChanceAnalysis(match.game_id)}
-                              style={{
-                                display: 'flex',
-                                justifyContent: 'space-between',
-                                alignItems: 'center',
-                                padding: '20px 24px',
-                                background: 'white',
-                                border: '1px solid #e2e8f0',
-                                borderLeft: `6px solid ${isDraw ? '#f59e0b' : '#ef4444'}`,
-                                borderRadius: 12,
-                                cursor: 'pointer',
-                                textAlign: 'left',
-                                transition: 'all 0.2s ease',
-                                boxShadow: '0 2px 4px rgba(0,0,0,0.02)'
-                              }}
-                              onMouseOver={(e) => e.currentTarget.style.transform = 'translateY(-2px)'}
-                              onMouseOut={(e) => e.currentTarget.style.transform = 'translateY(0)'}
-                            >
-                              <div>
-                                <div style={{ fontSize: 13, color: '#94a3b8', marginBottom: 4 }}>{match.date}</div>
-                                <div style={{ fontSize: 18, fontWeight: 700, color: '#1e293b' }}>
-                                  {match.home_team} <span style={{ color: '#cbd5e1', margin: '0 8px' }}>vs</span> {match.away_team}
-                                </div>
-                              </div>
-                              <div style={{ textAlign: 'right' }}>
-                                <div style={{ fontSize: 24, fontWeight: 800, color: '#1e293b', letterSpacing: '-1px' }}>
-                                  {match.score}
-                                </div>
-                                <div style={{
-                                  fontSize: 12, fontWeight: 600,
-                                  color: isDraw ? '#d97706' : '#dc2626'
-                                }}>
-                                  {match.result_text}
-                                </div>
-                              </div>
-                            </button>
-                          );
-                        })}
-                    </div>
-                  </div>
-                )}
-
-                {/* 2. 상세 분석 뷰 (매치가 선택되었을 때) */}
-                {selectedMatch && (
-                  <div className="fade-in">
                     <button
                       onClick={() => {
-                        setSelectedMatch(null);
-                        setChanceAnalysis(null);
+                        if (selectedTeam && opponent) {
+                          simKeyRef.current = null;
+                          runSimulation(selectedTeam, opponent);
+                        }
                       }}
-                      style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: 6,
-                        border: 'none',
-                        background: 'transparent',
-                        color: '#64748b',
-                        fontSize: 14,
-                        fontWeight: 600,
-                        cursor: 'pointer',
-                        padding: '8px 0',
-                        marginBottom: 12
-                      }}
+                      disabled={!canRunSim || simLoading}
+                      className={`${styles.preMatchButton} ${canRunSim && !simLoading ? styles.preMatchButtonActive : styles.preMatchButtonDisabled}`}
                     >
-                      <span>←</span> 뒤로가기
+                      {simLoading ? '계산 중...' : '재계산'}
                     </button>
-
-                    {chanceLoading ? (
-                      <div style={{ padding: 60, textAlign: 'center', color: '#64748b' }}>
-                        분석 중입니다...
-                      </div>
-                    ) : chanceAnalysis ? (
-                      <div className="analysis-result">
-                        <div className="card" style={{ padding: 24, border: '1px solid #bfdbfe', background: '#eff6ff' }}>
-                          <h3 style={{ margin: '0 0 16px 0', color: '#1e3a8a', display: 'flex', alignItems: 'center', gap: 8 }}>
-                            <span style={{ fontSize: 20 }}>💡</span>
-                            AI 분석 리포트
-                          </h3>
-                          <div style={{ fontSize: 15, lineHeight: 1.6, color: '#1e40af' }}>
-                            {chanceAnalysis.summary}
-                          </div>
-                        </div>
-
-                        <div className="card" style={{ marginTop: 20, border: 'none', background: 'transparent', padding: 0 }}>
-                          <h4 style={{ margin: '0 0 16px 4px', color: '#475569' }}>결정적 장면 재구성</h4>
-                          <div style={{
-                            display: 'grid',
-                            gridTemplateColumns: chanceAnalysis.chances.length > 1 ? '1fr 1fr' : '1fr',
-                            gap: 20
-                          }}>
-                            {chanceAnalysis.chances.map((chance, i) => (
-                              <div key={i} className="card">
-                                <KeyMomentPitch
-                                  moments={chance.key_moments}
-                                  teamName={chance.team_name}
-                                />
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      </div>
-                    ) : null}
                   </div>
-                )}
+
+                  <div className={styles.opponentLabel}>상대팀 선택</div>
+                  <div className={styles.opponentList}>
+                    {standings
+                      .filter((team) => team.team_id !== selectedTeam?.team_id)
+                      .map((team) => {
+                        const isActive = opponent?.team_id === team.team_id;
+                        return (
+                          <button
+                            key={team.team_id}
+                            onClick={() => handleOpponentSelect(team)}
+                            className={`${styles.opponentButton} ${isActive ? styles.opponentButtonActive : ''}`}
+                          >
+                            <Image
+                              src={getTeamLogo(team.team_name)}
+                              alt={team.team_name}
+                              className="team-logo"
+                              width={24}
+                              height={24}
+                              onError={(e) => { e.currentTarget.style.visibility = 'hidden'; }}
+                            />
+                            <div className={styles.opponentInfo}>
+                              <div className={styles.opponentName}>{team.team_name}</div>
+                              <div className={styles.opponentRank}>{team.rank}위 · {team.points}점</div>
+                            </div>
+                          </button>
+                        );
+                      })}
+                  </div>
+                  <div className={styles.opponentHint}>상대팀을 클릭하면 자동으로 예측이 갱신됩니다.</div>
+
+                  <div className={styles.preMatchGrid}>
+                    <div className={styles.matchupCard}>
+                      <div className={styles.matchupLabel}>매치업</div>
+                      <div className={styles.matchupRow}>
+                        <div className={styles.matchupTeam}>
+                          <Image
+                            src={getTeamLogo(selectedTeam.team_name)}
+                            alt={selectedTeam.team_name}
+                            className="team-logo-lg"
+                            width={48}
+                            height={48}
+                            onError={(e) => { e.currentTarget.style.visibility = 'hidden'; }}
+                          />
+                          <div className={styles.matchupTeamInfo}>
+                            <div className={styles.matchupTeamName}>{selectedTeam?.team_name}</div>
+                            <div className={styles.matchupTeamMeta}>{selectedTeam?.rank}위 · {selectedTeam?.points}점</div>
+                          </div>
+                        </div>
+                        <div className={styles.matchupVs}>VS</div>
+                        <div className={styles.matchupTeamRight}>
+                          {opponent ? (
+                            <>
+                              <div className={styles.matchupTeamInfo}>
+                                <div className={styles.matchupTeamName}>{opponent.team_name}</div>
+                                <div className={styles.matchupTeamMeta}>{opponent.rank}위 · {opponent.points}점</div>
+                              </div>
+                              <Image
+                                src={getTeamLogo(opponent.team_name)}
+                                alt={opponent.team_name}
+                                className="team-logo-lg"
+                                width={48}
+                                height={48}
+                                onError={(e) => { e.currentTarget.style.visibility = 'hidden'; }}
+                              />
+                            </>
+                          ) : (
+                            <div className={styles.matchupEmpty}>상대팀 선택</div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className={styles.probCard}>
+                      <div className={styles.probTitle}>기본 승부 예측</div>
+                      {simLoading ? renderProbSkeleton() : renderProbBars(simResult?.base_prediction)}
+                    </div>
+
+                    <div className={styles.probCard}>
+                      <div className={styles.probTitle}>전술 적용 후</div>
+                      {simLoading ? renderProbSkeleton() : renderProbBars(simResult?.optimal_prediction)}
+                    </div>
+                  </div>
+
+                  {simResult && (
+                    <div className={styles.improvement}>
+                      승률 개선 {simResult.win_improvement >= 0 ? '+' : ''}{toPct(simResult.win_improvement).toFixed(1)}%p
+                    </div>
+                  )}
+
+                  <div className={styles.preMatchDetailGrid}>
+                    <div className={styles.detailCard}>
+                      <div className={styles.detailTitle}>핵심 전술 제안</div>
+                      {simLoading ? (
+                        <div className={styles.detailHint}>시뮬레이션 결과를 기다리는 중...</div>
+                      ) : simResult?.tactical_suggestions?.length ? (
+                        <div className={styles.tacticList}>
+                          {simResult.tactical_suggestions.slice(0, 3).map((s) => (
+                            <div key={`${s.priority}-${s.tactic}`} className={styles.tacticItem}>
+                              <div className={styles.tacticRank}>
+                                {s.priority}
+                              </div>
+                              <div>
+                                <div className={styles.tacticTitle}>{s.tactic}</div>
+                                <div className={styles.tacticReason}>{s.reason}</div>
+                                <div className={styles.tacticEffect}>{s.expected_effect}</div>
+                              </div>
+                              <div className={styles.tacticDelta}>
+                                {s.win_prob_change}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <div className={styles.detailHint}>전술 제안을 준비 중입니다.</div>
+                      )}
+                    </div>
+
+                    <div className={styles.detailCard}>
+                      <div className={styles.detailTitle}>전술 시나리오</div>
+                      {simLoading ? (
+                        <div className={styles.detailHint}>시나리오 계산 중...</div>
+                      ) : scenarios.length ? (
+                        <div className={styles.scenarioList}>
+                          {scenarios.slice(0, 3).map((sc) => (
+                            <div key={sc.scenario} className={styles.scenarioItem}>
+                              <div className={styles.scenarioTitle}>{sc.scenario}</div>
+                              <div className={styles.scenarioDesc}>{sc.description}</div>
+                              <div className={styles.scenarioStats}>
+                                승률 {fmtPct(sc.before.win)} → {fmtPct(sc.after.win)}
+                                <span className={styles.scenarioDelta}>
+                                  {sc.win_change >= 0 ? '+' : ''}{toPct(sc.win_change).toFixed(1)}%p
+                                </span>
+                              </div>
+                              <div className={styles.scenarioRecommendation}>{sc.recommendation}</div>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <div className={styles.detailHint}>시나리오 데이터가 없습니다.</div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                <div>
+                  <div className={styles.matchAnalysisHeader}>
+                    <div className={styles.matchAnalysisTitle}>🔍 경기 분석 - 놓친 찬스</div>
+                    <p className={styles.matchAnalysisDesc}>
+                      분석할 경기를 선택하세요. 패배/무승부 경기에서 <strong className={styles.matchHighlight}>승리할 수 있었던 기회</strong>를 찾아냅니다.
+                    </p>
+                  </div>
+
+                  {/* 1. 매치 리스트 뷰 (선택된 매치가 없을 때) */}
+                  {!selectedMatch && (
+                    <div className="fade-in">
+                      {recentMatches.length === 0 ? (
+                        <div className={`card ${styles.matchListEmpty}`}>
+                          최근 경기 데이터를 불러오는 중입니다.
+                        </div>
+                      ) : (
+                        <div className={styles.matchList}>
+                          {recentMatches
+                            .filter((match) => {
+                              if (!selectedTeam) return true;
+                              const teamId = selectedTeam.team_id;
+                              const isHomeTeam = match.home_team_id === teamId;
+                              const isAwayTeam = match.away_team_id === teamId;
+                              if (match.result === 'draw') return true;
+                              if (isHomeTeam && match.result === 'home_win') return false;
+                              if (isAwayTeam && match.result === 'away_win') return false;
+                              return true;
+                            })
+                            .map((match) => {
+                              const isDraw = match.result === 'draw';
+                              return (
+                                <button
+                                  key={match.game_id}
+                                  onClick={() => loadChanceAnalysis(match.game_id)}
+                                  className={styles.matchButton}
+                                  style={{ borderLeft: `6px solid ${isDraw ? '#f59e0b' : '#ef4444'}` }}
+                                >
+                                  <div>
+                                    <div className={styles.matchDate}>{match.date}</div>
+                                    <div className={styles.matchTeams}>
+                                      {match.home_team} <span className={styles.matchVs}>vs</span> {match.away_team}
+                                    </div>
+                                  </div>
+                                  <div className={styles.matchRight}>
+                                    <div className={styles.matchScore}>{match.score}</div>
+                                    <div className={styles.matchResult} style={{ color: isDraw ? '#d97706' : '#dc2626' }}>
+                                      {match.result_text}
+                                    </div>
+                                  </div>
+                                </button>
+                              );
+                            })}
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* 2. 상세 분석 뷰 (매치가 선택되었을 때) */}
+                  {selectedMatch && (
+                    <div className="fade-in">
+                      <button
+                        onClick={() => {
+                          setSelectedMatch(null);
+                          setChanceAnalysis(null);
+                        }}
+                        className={styles.analysisBack}
+                      >
+                        <span>←</span> 뒤로가기
+                      </button>
+
+                      {chanceLoading ? (
+                        <div className={styles.analysisLoading}>분석 중입니다...</div>
+                      ) : chanceAnalysis ? (
+                        <div className="analysis-result">
+                          <div className={`card ${styles.analysisCard}`}>
+                            <h3 className={styles.analysisCardTitle}>
+                              <span className={styles.analysisCardIcon}>💡</span>
+                              AI 분석 리포트
+                            </h3>
+                            <div className={styles.analysisCardText}>
+                              {chanceAnalysis.summary}
+                            </div>
+                          </div>
+
+                          <div className={`card ${styles.analysisGrid}`}>
+                            <h4 className={styles.analysisGridTitle}>결정적 장면 재구성</h4>
+                            <div
+                              className={styles.analysisGridList}
+                              style={{
+                                gridTemplateColumns: chanceAnalysis.chances.length > 1 ? '1fr 1fr' : '1fr',
+                              }}
+                            >
+                              {chanceAnalysis.chances.map((chance, i) => (
+                                <div key={i} className="card">
+                                  <KeyMomentPitch
+                                    moments={chance.key_moments}
+                                    teamName={chance.team_name}
+                                  />
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        </div>
+                      ) : null}
+                    </div>
+                  )}
+                </div>
               </div>
             )}
           </>

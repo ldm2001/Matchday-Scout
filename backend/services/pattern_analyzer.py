@@ -163,12 +163,15 @@ class PatternMiner:
                     "count": 0,
                     "shot_phases": 0,
                     "shot_total": 0,
+                    "action_total": 0,
                     "avg_features": {},
                 }
             clusters[label]["phases"].append(i)
             clusters[label]["count"] += 1
             shot_count = int(self.phase_stats[i].get("shot_count", 0))
+            action_count = int(self.phase_stats[i].get("length", 0))
             clusters[label]["shot_total"] += shot_count
+            clusters[label]["action_total"] += action_count
             if shot_count > 0:
                 clusters[label]["shot_phases"] += 1
 
@@ -192,8 +195,8 @@ class PatternMiner:
                 clusters[label]["avg_features"][col] = float(
                     np.mean([self.phase_stats[i].get(col, 0) for i in phase_indices])
                 )
-            clusters[label]["shot_conversion_rate"] = clusters[label]["shot_phases"] / max(
-                clusters[label]["count"], 1
+            clusters[label]["shot_conversion_rate"] = clusters[label]["shot_total"] / max(
+                clusters[label]["action_total"], 1
             )
 
         return clusters
@@ -323,6 +326,7 @@ def seq_weight(pattern: Tuple[str, ...]) -> float:
 
 
 def team_pat(events_df: pd.DataFrame, team_id: int, n_patterns: int = 3) -> List[Dict]:
+    events_df = action_rows(events_df)
     analyzer = PhaseAnalyzer(events_df)
     phases = analyzer.phase_list()
     if not phases:
@@ -332,6 +336,26 @@ def team_pat(events_df: pd.DataFrame, team_id: int, n_patterns: int = 3) -> List
     team_phases = [p for p in phases if int(p.iloc[0].get("team_id", -1)) == int(team_id)]
     if not team_phases:
         return []
+
+    # cap phases to keep DTW cost bounded
+    max_phases = 200
+    if len(team_phases) > max_phases:
+        shot_idx = [
+            i
+            for i, p in enumerate(team_phases)
+            if "type_name" in p.columns and (p["type_name"] == "Shot").any()
+        ]
+        keep = shot_idx
+        if len(keep) > max_phases:
+            keep = sorted(keep, key=lambda i: len(team_phases[i]), reverse=True)[:max_phases]
+        else:
+            extra = max_phases - len(keep)
+            if extra > 0:
+                other = [i for i in range(len(team_phases)) if i not in set(keep)]
+                other = sorted(other, key=lambda i: len(team_phases[i]), reverse=True)[:extra]
+                keep = keep + other
+        keep = sorted(set(keep))
+        team_phases = [team_phases[i] for i in keep]
 
     miner = PatternMiner(team_phases)
     return miner.pattern_top(n_patterns)

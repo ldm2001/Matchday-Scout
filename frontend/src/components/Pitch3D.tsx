@@ -3,6 +3,7 @@
 import { useRef, useEffect } from 'react';
 import * as THREE from 'three';
 import { KeyMoment } from '@/lib/api';
+import styles from './Pitch3D.module.css';
 
 interface Pitch3DProps {
     moment: KeyMoment;
@@ -239,35 +240,27 @@ export default function Pitch3D({ moment, width = 500, height = 350 }: Pitch3DPr
         ringMarker.castShadow = true;
         scene.add(ringMarker);
 
-        // Arrow - curved tube
+        // Relocation trail
         const curve = new THREE.QuadraticBezierCurve3(
             new THREE.Vector3(actualX, 4, actualY),
             new THREE.Vector3((actualX + suggestX) / 2, 12, (actualY + suggestY) / 2),
             new THREE.Vector3(suggestX, 4, suggestY)
         );
-        const tubeGeometry = new THREE.TubeGeometry(curve, 32, 0.5, 12, false);
-        const tubeMaterial = new THREE.MeshStandardMaterial({
-            color: 0x3b82f6,
-            emissive: 0x1e40af,
-            emissiveIntensity: 0.2
+        const trailMaterial = new THREE.MeshStandardMaterial({
+            color: 0xf59e0b,
+            emissive: 0xb45309,
+            emissiveIntensity: 0.25,
+            transparent: true,
+            opacity: 0.9
         });
-        const tube = new THREE.Mesh(tubeGeometry, tubeMaterial);
-        scene.add(tube);
-
-        // Arrow head (cone)
-        const coneGeometry = new THREE.ConeGeometry(1.2, 3, 16);
-        const coneMaterial = new THREE.MeshStandardMaterial({
-            color: 0x3b82f6,
-            emissive: 0x1e40af,
-            emissiveIntensity: 0.2
+        const trailGeometry = new THREE.SphereGeometry(0.8, 18, 18);
+        const trailPoints = curve.getPoints(6);
+        trailPoints.slice(1, -1).forEach((point, idx) => {
+            const marker = new THREE.Mesh(trailGeometry, trailMaterial);
+            marker.position.set(point.x, 1.6 + idx * 0.12, point.z);
+            marker.castShadow = true;
+            scene.add(marker);
         });
-        const cone = new THREE.Mesh(coneGeometry, coneMaterial);
-
-        // Position at end of curve, pointing in direction of movement
-        const tangent = curve.getTangent(1);
-        cone.position.set(suggestX, 4, suggestY);
-        cone.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), tangent);
-        scene.add(cone);
 
         // Render
         renderer.render(scene, camera);
@@ -284,13 +277,8 @@ export default function Pitch3D({ moment, width = 500, height = 350 }: Pitch3DPr
     return (
         <div
             ref={containerRef}
-            style={{
-                width,
-                height,
-                borderRadius: 12,
-                overflow: 'hidden',
-                boxShadow: '0 4px 20px rgba(0,0,0,0.15)'
-            }}
+            className={styles.pitch3d}
+            style={{ width, height }}
         />
     );
 }

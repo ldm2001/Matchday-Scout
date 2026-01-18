@@ -16,6 +16,24 @@ const getApiBase = (): string => {
   return process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 };
 
+const RETRY_STATUSES = new Set([500, 502, 503, 504]);
+const RETRY_LIMIT = 2;
+const RETRY_DELAY_MS = 400;
+
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+async function fetchWithRetry(url: string, init?: RequestInit, retries: number = RETRY_LIMIT) {
+    let attempt = 0;
+    while (true) {
+        const res = await fetch(url, init);
+        if (res.ok || !RETRY_STATUSES.has(res.status) || attempt >= retries) {
+            return res;
+        }
+        attempt += 1;
+        await sleep(RETRY_DELAY_MS * attempt);
+    }
+}
+
 async function fetchAPI<T>(endpoint: string): Promise<T> {
     // 매번 호출 시점에 API_BASE를 계산 (런타임에 결정)
     const API_BASE = getApiBase();
@@ -28,7 +46,7 @@ async function fetchAPI<T>(endpoint: string): Promise<T> {
       }
     }
     
-    const res = await fetch(`${API_BASE}${endpoint}`);
+    const res = await fetchWithRetry(`${API_BASE}${endpoint}`);
     if (!res.ok) {
         throw new Error(`API Error: ${res.status}`);
     }
@@ -218,7 +236,7 @@ export async function getFullTacticalAnalysis(teamId: number, nGames: number = 5
 async function postAPI<T>(endpoint: string, data: object): Promise<T> {
     // 매번 호출 시점에 API_BASE를 계산 (런타임에 결정)
     const API_BASE = getApiBase();
-    const res = await fetch(`${API_BASE}${endpoint}`, {
+    const res = await fetchWithRetry(`${API_BASE}${endpoint}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(data),
@@ -350,4 +368,3 @@ export async function matchList(teamId?: number) {
 export async function matchChances(gameId: number) {
     return fetchAPI<ChanceAnalysis>(`/api/simulation/matches/${gameId}/chances`);
 }
-

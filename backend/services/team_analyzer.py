@@ -19,20 +19,25 @@ def team_stats(team_id: int, patterns: List[Dict], setpieces: List[Dict], hubs: 
         avg_shot_rate = np.mean([p.get('shot_conversion_rate', 0) for p in patterns])
         max_shot_rate = max([p.get('shot_conversion_rate', 0) for p in patterns])
         total_frequency = sum([p.get('frequency', 0) for p in patterns])
-        
-        if max_shot_rate > 0.25:
-            strengths.append({'category': '공격', 'title': '높은 슈팅 전환율',
-                'description': f'최고 {max_shot_rate*100:.0f}% 전환율의 위험한 공격 패턴 보유',
-                'score': min(100, int(max_shot_rate * 300))})
-        elif max_shot_rate < 0.1:
-            weaknesses.append({'category': '공격', 'title': '낮은 결정력',
-                'description': f'공격 패턴의 슈팅 전환율이 {max_shot_rate*100:.0f}%로 저조',
-                'score': max(20, int(max_shot_rate * 300))})
-        
-        if total_frequency > 500:
+
+        if total_frequency >= 30:
+            if max_shot_rate > 0.18:
+                strengths.append({'category': '공격', 'title': '높은 슈팅 전환율',
+                    'description': f'최고 {max_shot_rate*100:.0f}% 전환율의 위험한 공격 패턴 보유',
+                    'score': min(100, int(max_shot_rate * 400))})
+            elif max_shot_rate < 0.08:
+                weaknesses.append({'category': '공격', 'title': '낮은 결정력',
+                    'description': f'공격 패턴의 슈팅 전환율이 {max_shot_rate*100:.0f}%로 저조',
+                    'score': max(20, int(max_shot_rate * 400))})
+
+        if total_frequency > 250:
             strengths.append({'category': '공격', 'title': '다양한 공격 루트',
                 'description': f'{total_frequency}회의 다채로운 공격 시도',
-                'score': min(100, int(total_frequency / 8))})
+                'score': min(100, int(total_frequency / 5))})
+        elif total_frequency < 80:
+            weaknesses.append({'category': '공격', 'title': '공격 전개 부족',
+                'description': f'최근 패턴 빈도가 {total_frequency}회로 낮음',
+                'score': 45})
     
     # 세트피스 분석
     if setpieces:
@@ -40,22 +45,36 @@ def team_stats(team_id: int, patterns: List[Dict], setpieces: List[Dict], hubs: 
         freekick_routines = [s for s in setpieces if 'Freekick' in s.get('type', '')]
         
         if corner_routines:
-            avg_corner_rate = np.mean([c.get('shot_rate', 0) for c in corner_routines])
-            if avg_corner_rate > 0.3:
-                strengths.append({'category': '세트피스', 'title': '코너킥 위협',
-                    'description': f'코너킥에서 {avg_corner_rate*100:.0f}% 슈팅 전환',
-                    'score': min(100, int(avg_corner_rate * 200))})
-            elif avg_corner_rate < 0.15:
-                weaknesses.append({'category': '세트피스', 'title': '코너킥 효율 저조',
-                    'description': f'코너킥 슈팅 전환율 {avg_corner_rate*100:.0f}%로 개선 필요',
-                    'score': max(20, int(avg_corner_rate * 200))})
+            corner_total = sum([c.get('frequency', 0) for c in corner_routines])
+            avg_corner_rate = np.average(
+                [c.get('shot_rate', 0) for c in corner_routines],
+                weights=[max(c.get('frequency', 0), 1) for c in corner_routines],
+            )
+            if corner_total >= 8:
+                if avg_corner_rate > 0.28:
+                    strengths.append({'category': '세트피스', 'title': '코너킥 위협',
+                        'description': f'코너킥에서 {avg_corner_rate*100:.0f}% 슈팅 전환',
+                        'score': min(100, int(avg_corner_rate * 220))})
+                elif avg_corner_rate < 0.12:
+                    weaknesses.append({'category': '세트피스', 'title': '코너킥 효율 저조',
+                        'description': f'코너킥 슈팅 전환율 {avg_corner_rate*100:.0f}%로 개선 필요',
+                        'score': max(20, int(avg_corner_rate * 220))})
         
         if freekick_routines:
-            avg_fk_rate = np.mean([f.get('shot_rate', 0) for f in freekick_routines])
-            if avg_fk_rate > 0.25:
-                strengths.append({'category': '세트피스', 'title': '프리킥 전문가',
-                    'description': f'프리킥에서 {avg_fk_rate*100:.0f}% 슈팅 전환',
-                    'score': min(100, int(avg_fk_rate * 200))})
+            fk_total = sum([f.get('frequency', 0) for f in freekick_routines])
+            avg_fk_rate = np.average(
+                [f.get('shot_rate', 0) for f in freekick_routines],
+                weights=[max(f.get('frequency', 0), 1) for f in freekick_routines],
+            )
+            if fk_total >= 6:
+                if avg_fk_rate > 0.22:
+                    strengths.append({'category': '세트피스', 'title': '프리킥 전문가',
+                        'description': f'프리킥에서 {avg_fk_rate*100:.0f}% 슈팅 전환',
+                        'score': min(100, int(avg_fk_rate * 220))})
+                elif avg_fk_rate < 0.1:
+                    weaknesses.append({'category': '세트피스', 'title': '프리킥 활용 저조',
+                        'description': f'프리킥 슈팅 전환율 {avg_fk_rate*100:.0f}%로 개선 필요',
+                        'score': 40})
     
     # 빌드업 허브 분석
     if hubs:
@@ -91,14 +110,6 @@ def team_stats(team_id: int, patterns: List[Dict], setpieces: List[Dict], hubs: 
         if avg_duration > 40:
             weaknesses.append({'category': '공격', 'title': '느린 빌드업 템포',
                 'description': f'평균 {avg_duration:.0f}초의 긴 빌드업, 역습에 취약 가능', 'score': 55})
-    
-    if setpieces:
-        freekick_routines = [s for s in setpieces if 'Freekick' in s.get('type', '')]
-        if freekick_routines:
-            avg_fk_rate = np.mean([f.get('shot_rate', 0) for f in freekick_routines])
-            if avg_fk_rate < 0.2:
-                weaknesses.append({'category': '세트피스', 'title': '프리킥 활용 저조',
-                    'description': f'프리킥 슈팅 전환율 {avg_fk_rate*100:.0f}%', 'score': 40})
     
     if hubs and len(hubs) >= 2:
         receives = [h.get('passes_received', 0) for h in hubs[:2]]

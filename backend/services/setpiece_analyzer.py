@@ -111,7 +111,7 @@ class SetPieceAnalyzer:
             swings = [r.get('swing_type', 'unknown') for r in routine_group]
             clusters[label]['primary_zone'] = Counter(zones).most_common(1)[0][0]
             clusters[label]['swing_type'] = Counter(swings).most_common(1)[0][0]
-            clusters[label]['shot_rate'] = clusters[label]['shot_count'] / clusters[label]['count']
+            clusters[label]['shot_rate'] = clusters[label]['shot_count'] / max(clusters[label]['count'] + 1, 1)
             clusters[label]['avg_target_x'] = np.mean([r.get('first_target_x', 0) for r in routine_group])
             clusters[label]['avg_target_y'] = np.mean([r.get('first_target_y', 0) for r in routine_group])
         
@@ -129,6 +129,8 @@ class SetPieceAnalyzer:
         if len(corners) >= 3:
             corner_clusters = self.routine_group(corners, min(3, len(corners)))
             for label, info in sorted(corner_clusters.items(), key=lambda x: x[1]['shot_rate'], reverse=True)[:n_top]:
+                if info.get('count', 0) < 5:
+                    continue
                 results.append({
                     'type': 'Corner', 'cluster_id': int(label), 'frequency': info['count'],
                     'shot_rate': round(info['shot_rate'], 3), 'primary_zone': info['primary_zone'],
@@ -140,6 +142,8 @@ class SetPieceAnalyzer:
         if len(freekicks) >= 3:
             fk_clusters = self.routine_group(freekicks, min(3, len(freekicks)))
             for label, info in sorted(fk_clusters.items(), key=lambda x: x[1]['shot_rate'], reverse=True)[:n_top]:
+                if info.get('count', 0) < 5:
+                    continue
                 results.append({
                     'type': 'Freekick', 'cluster_id': int(label), 'frequency': info['count'],
                     'shot_rate': round(info['shot_rate'], 3), 'primary_zone': info['primary_zone'],

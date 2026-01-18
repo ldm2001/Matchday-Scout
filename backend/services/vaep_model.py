@@ -520,16 +520,19 @@ def player_vals(events: pd.DataFrame, team_id: Optional[int] = None) -> List[Dic
     return grouped.sort_values("total_vaep", ascending=False).to_dict("records")
 
 
-def team_sum(events: pd.DataFrame, team_id: int, n_top: int = 10) -> Dict:
+def team_sum(events: pd.DataFrame, team_id: int, n_top: int = 10, guard: bool = False) -> Dict:
     events = spadl_map(events)
     events = action_rows(events)
-    match_df = matches()[["game_id", "game_date"]].copy()
-    match_df["game_date"] = pd.to_datetime(match_df["game_date"], errors="coerce")
-    game_dates = match_df.set_index("game_id")["game_date"].to_dict()
-    drop_games = sorted(events["game_id"].dropna().astype(int).unique().tolist())
-    dates = [game_dates.get(gid) for gid in drop_games if pd.notna(game_dates.get(gid))]
-    date_max = min(dates) - pd.Timedelta(seconds=1) if dates else None
-    p_score, p_concede, metrics = prob_vals(events, date_max=date_max, drop_games=drop_games)
+    if guard:
+        match_df = matches()[["game_id", "game_date"]].copy()
+        match_df["game_date"] = pd.to_datetime(match_df["game_date"], errors="coerce")
+        game_dates = match_df.set_index("game_id")["game_date"].to_dict()
+        drop_games = sorted(events["game_id"].dropna().astype(int).unique().tolist())
+        dates = [game_dates.get(gid) for gid in drop_games if pd.notna(game_dates.get(gid))]
+        date_max = min(dates) - pd.Timedelta(seconds=1) if dates else None
+        p_score, p_concede, metrics = prob_vals(events, date_max=date_max, drop_games=drop_games)
+    else:
+        p_score, p_concede, metrics = prob_vals(events)
     if len(p_score) == 0:
         return {
             "team_total_vaep": 0.0,
@@ -554,16 +557,19 @@ def team_sum(events: pd.DataFrame, team_id: int, n_top: int = 10) -> Dict:
     }
 
 
-def team_vals(events: pd.DataFrame, team_id: int, n_top_actions: int = 5) -> Dict:
+def team_vals(events: pd.DataFrame, team_id: int, n_top_actions: int = 5, guard: bool = False) -> Dict:
     events = spadl_map(events)
     events = action_rows(events)
-    match_df = matches()[["game_id", "game_date"]].copy()
-    match_df["game_date"] = pd.to_datetime(match_df["game_date"], errors="coerce")
-    game_dates = match_df.set_index("game_id")["game_date"].to_dict()
-    drop_games = sorted(events["game_id"].dropna().astype(int).unique().tolist())
-    dates = [game_dates.get(gid) for gid in drop_games if pd.notna(game_dates.get(gid))]
-    date_max = min(dates) - pd.Timedelta(seconds=1) if dates else None
-    p_score, p_concede, metrics = prob_vals(events, date_max=date_max, drop_games=drop_games)
+    if guard:
+        match_df = matches()[["game_id", "game_date"]].copy()
+        match_df["game_date"] = pd.to_datetime(match_df["game_date"], errors="coerce")
+        game_dates = match_df.set_index("game_id")["game_date"].to_dict()
+        drop_games = sorted(events["game_id"].dropna().astype(int).unique().tolist())
+        dates = [game_dates.get(gid) for gid in drop_games if pd.notna(game_dates.get(gid))]
+        date_max = min(dates) - pd.Timedelta(seconds=1) if dates else None
+        p_score, p_concede, metrics = prob_vals(events, date_max=date_max, drop_games=drop_games)
+    else:
+        p_score, p_concede, metrics = prob_vals(events)
     if len(p_score) == 0:
         return {
             "team_id": team_id,

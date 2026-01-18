@@ -84,18 +84,26 @@ class NetworkAnalyzer:
         if received.empty:
             return self.graph
 
-        passes = passes.sort_values(["game_id", "team_id", "action_id"])
-        received = received.sort_values(["game_id", "team_id", "action_id"])
+        action_max = int(max(passes["action_id"].max(), received["action_id"].max()))
+        team_max = int(max(passes["team_id"].max(), received["team_id"].max()))
+        action_mult = action_max + 1
+        team_mult = action_mult * (team_max + 1)
+        passes["key"] = passes["game_id"] * team_mult + passes["team_id"] * action_mult + passes["action_id"]
+        received["key"] = received["game_id"] * team_mult + received["team_id"] * action_mult + received["action_id"]
+        passes = passes.sort_values("key")
+        received = received.sort_values("key")
 
         pairs = pd.merge_asof(
             passes,
             received,
-            on="action_id",
-            by=["game_id", "team_id"],
+            on="key",
             direction="forward",
             suffixes=("", "_recv"),
         )
         pairs = pairs.dropna(subset=["player_id_recv"])
+        pairs["action_gap"] = pairs["action_id_recv"] - pairs["action_id"]
+        pairs = pairs[pairs["action_gap"] >= 0]
+        pairs = pairs[pairs["action_gap"] <= 30]
         pairs = pairs[pairs["player_id"] != pairs["player_id_recv"]]
         if pairs.empty:
             return self.graph

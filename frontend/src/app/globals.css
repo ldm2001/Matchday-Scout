@@ -82,6 +82,14 @@ body {
   padding: 40px 0;
 }
 
+.fade-in {
+  animation: fadeIn 0.45s ease-out both;
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.4s ease-out both;
+}
+
 .hero-intro {
   text-align: center;
   margin-bottom: 48px;
@@ -228,6 +236,25 @@ body {
   to {
     opacity: 1;
     transform: translateY(0);
+  }
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fade-in,
+  .animate-fade-in,
+  .hero-section {
+    animation: none;
   }
 }
 
