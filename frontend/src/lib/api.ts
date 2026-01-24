@@ -3,17 +3,17 @@
 // 브라우저 환경에서는 항상 상대 경로 사용 (Nginx가 /api로 프록시)
 // 서버 사이드 렌더링 시에만 환경 변수 또는 localhost 사용
 const getApiBase = (): string => {
-  // 브라우저 환경: 항상 상대 경로 사용
-  // Nginx가 /api 경로를 백엔드로 프록시하므로 상대 경로가 올바름
-  if (typeof window !== 'undefined') {
-    // 브라우저에서는 무조건 상대 경로 사용
-    // 환경 변수는 완전히 무시 (빌드 타임 환경 변수 문제 방지)
-    return '';
-  }
-  
-  // 서버 사이드 렌더링(SSR) 시에만 환경 변수 또는 localhost 사용
-  // Next.js의 서버 컴포넌트나 getServerSideProps 등에서 사용될 때
-  return process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+    // 브라우저 환경: 항상 상대 경로 사용
+    // Nginx가 /api 경로를 백엔드로 프록시하므로 상대 경로가 올바름
+    if (typeof window !== 'undefined') {
+        // 브라우저에서는 무조건 상대 경로 사용
+        // 환경 변수는 완전히 무시 (빌드 타임 환경 변수 문제 방지)
+        return '';
+    }
+
+    // 서버 사이드 렌더링(SSR) 시에만 환경 변수 또는 localhost 사용
+    // Next.js의 서버 컴포넌트나 getServerSideProps 등에서 사용될 때
+    return process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 };
 
 const RETRY_STATUSES = new Set([500, 502, 503, 504]);
@@ -177,13 +177,13 @@ export async function getPhaseReplay(teamId: number, phaseId: number, nGames: nu
 }
 
 // Set-pieces API
-export async function getTeamSetpieces(teamId: number, nGames: number = 5) {
+export async function getTeamSetpieces(teamId: number, nGames: number = 5, nTop: number = 2) {
     return fetchAPI<{
         team_id: number;
         n_games_analyzed: number;
         setpiece_counts: { corners: number; freekicks: number };
         routines: import('@/types').SetPieceRoutine[];
-    }>(`/api/setpieces/${teamId}?n_games=${nGames}`);
+    }>(`/api/setpieces/${teamId}?n_games=${nGames}&n_top=${nTop}`);
 }
 
 // Network API
