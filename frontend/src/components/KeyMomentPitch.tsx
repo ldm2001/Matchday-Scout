@@ -143,6 +143,22 @@ function Modal3D({ moment, onClose, teamName }: { moment: KeyMoment; onClose: ()
         return () => window.removeEventListener('resize', handleResize);
     }, []);
 
+    const actualPos = {
+        x: safeNum(moment.position?.x, 75),
+        y: safeNum(moment.position?.y, 34),
+    };
+    const targetPos = {
+        x: safeNum(moment.suggestion?.target_position?.x || moment.suggestion?.target_x, actualPos.x + 8),
+        y: safeNum(moment.suggestion?.target_position?.y || moment.suggestion?.target_y, actualPos.y),
+    };
+    const shiftDistance = Math.hypot(targetPos.x - actualPos.x, targetPos.y - actualPos.y);
+    const distanceRaw = toNum(moment.original_situation?.distance_to_goal);
+    const goalDistance = distanceRaw ?? Math.hypot(105 - actualPos.x, 34 - actualPos.y);
+    const actualCoord = `${actualPos.x.toFixed(1)}m, ${actualPos.y.toFixed(1)}m`;
+    const targetCoord = `${targetPos.x.toFixed(1)}m, ${targetPos.y.toFixed(1)}m`;
+    const moveLabel = `${shiftDistance.toFixed(1)}m`;
+    const goalLabel = `${goalDistance.toFixed(1)}m`;
+
     const actualXg = toPct(moment.failure_analysis?.xg);
     const expectedXg = toPct(moment.suggestion?.expected_xg);
     const deltaXg = actualXg !== null && expectedXg !== null ? expectedXg - actualXg : null;
@@ -150,8 +166,7 @@ function Modal3D({ moment, onClose, teamName }: { moment: KeyMoment; onClose: ()
         ? `${deltaXg > 0 ? '+' : ''}${deltaXg.toFixed(1)}%p`
         : (moment.suggestion?.xg_improvement || '—');
 
-    const distance = toNum(moment.original_situation?.distance_to_goal);
-    const distanceLabel = distance !== null ? `${distance.toFixed(1)}m` : '—';
+    const distanceLabel = Number.isFinite(goalDistance) ? goalLabel : '—';
 
     const zoneMap: Record<string, string> = {
         central: '중앙',
@@ -236,6 +251,25 @@ function Modal3D({ moment, onClose, teamName }: { moment: KeyMoment; onClose: ()
                             </span>
                         </div>
 
+                        <div className={styles.statStrip}>
+                            <div className={styles.statItem}>
+                                <div className={styles.statLabel}>실제 위치</div>
+                                <div className={styles.statValue}>{actualCoord}</div>
+                            </div>
+                            <div className={styles.statItem}>
+                                <div className={styles.statLabel}>추천 위치</div>
+                                <div className={styles.statValue}>{targetCoord}</div>
+                            </div>
+                            <div className={styles.statItem}>
+                                <div className={styles.statLabel}>이동 거리</div>
+                                <div className={styles.statValue}>{moveLabel}</div>
+                            </div>
+                            <div className={styles.statItem}>
+                                <div className={styles.statLabel}>골까지 거리</div>
+                                <div className={styles.statValue}>{goalLabel}</div>
+                            </div>
+                        </div>
+
                         <div className={styles.scoreRow}>
                             <div className={styles.scoreCard}>
                                 <div className={styles.scoreLabel}>실제 xG</div>
@@ -260,8 +294,8 @@ function Modal3D({ moment, onClose, teamName }: { moment: KeyMoment; onClose: ()
                         <div className={styles.modalGrid}>
                             <div className={styles.pitchCard}>
                                 <div className={styles.pitchHead}>
-                                    <div className={styles.pitchTitle}>3D 포지셔닝</div>
-                                    <div className={styles.pitchMeta}>실제 vs AI 추천</div>
+                                    <div className={styles.pitchTitle}>포지셔닝 맵</div>
+                                    <div className={styles.pitchMeta}>탑뷰 · 실제 vs AI</div>
                                 </div>
                                 <div className={styles.pitchWrap}>
                                     <Pitch3D moment={moment} width={pitchSize.width} height={pitchSize.height} />

@@ -6,7 +6,7 @@ from functools import lru_cache
 from .spadl import team_norm, spadl_map
 
 
-DATA_DIR = Path(__file__).parent.parent.parent / "open_track"
+DATA_DIR = Path(__file__).resolve().parents[3] / "open_track"
 
 
 def data_stamp() -> tuple:
