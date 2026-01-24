@@ -1,7 +1,7 @@
 # VAEP summary wrapper
 import pandas as pd
 from typing import Dict, Optional
-from .vaep_model import team_sum as _team_sum
+from .model import team_sum as _team_sum
 
 
 def team_sum(events_df: pd.DataFrame, team_id: Optional[int] = None, n_top: int = 10) -> Dict:

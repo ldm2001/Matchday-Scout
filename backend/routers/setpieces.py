@@ -1,10 +1,8 @@
 # 세트피스 분석 API 라우터
 from fastapi import APIRouter, HTTPException
 
-import sys
-sys.path.append('..')
-from services.data_loader import team_events
-from services.setpiece_analyzer import team_set, SetPieceAnalyzer
+from services.core.data import team_events
+from services.analyzers.setpiece import team_set, SetPieceAnalyzer
 
 router = APIRouter()
 

@@ -3,7 +3,7 @@ import pandas as pd
 import numpy as np
 import math
 from typing import Dict, List
-from services.data_loader import raw, matches
+from ..core.data import raw, matches
 
 
 def num(value, default=0.0):

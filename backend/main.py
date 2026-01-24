@@ -4,8 +4,8 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from routers import teams, patterns, setpieces, network, simulation
-from services.data_loader import raw, matches
-from services.vaep_model import vaep_models
+from services.core.data import raw, matches
+from services.vaep.model import vaep_models
 
 app = FastAPI(
     title="Matchday Scout API",

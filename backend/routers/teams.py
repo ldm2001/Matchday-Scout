@@ -2,9 +2,7 @@
 from fastapi import APIRouter, HTTPException
 from typing import Optional
 
-import sys
-sys.path.append('..')
-from services.data_loader import teams as team_rows, team_events, matches as match_rows
+from services.core.data import teams as team_rows, team_events, matches as match_rows
 
 router = APIRouter()
 

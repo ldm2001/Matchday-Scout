@@ -3,13 +3,11 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from typing import Optional
 
-import sys
-sys.path.append('..')
-from services.data_loader import team_events, teams, data_stamp
-from services.match_simulator import prematch as prematch_job
-from services.vaep_model import vals_box
-from services.simulator import tactic_sim
-from services.chance_analyzer import chance_log, match_log
+from services.core.data import team_events, teams, data_stamp
+from services.sim.match import prematch as prematch_job
+from services.vaep.model import vals_box
+from services.sim.tactic import tactic_sim
+from services.analyzers.chance import chance_log, match_log
 
 router = APIRouter()
 

@@ -21,8 +21,8 @@ except Exception:
     CatBoostClassifier = None
     _HAS_CAT = False
 
-from .data_loader import raw, matches, match_events, data_stamp
-from .spadl import (
+from ..core.data import raw, matches, match_events, data_stamp
+from ..core.spadl import (
     action_rows,
     spadl_map,
     goal_flag,

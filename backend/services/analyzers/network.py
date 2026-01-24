@@ -6,7 +6,8 @@ from typing import Dict, List
 from functools import lru_cache
 import math
 
-from .data_loader import team_events
+from ..core.data import team_events
+from ..core.spec import Analyzer
 
 
 def num(value, default=0.0):
@@ -28,12 +29,13 @@ def num_int(value, default=0):
         return default
 
 
-class NetworkAnalyzer:
-    def __init__(self, events_df: pd.DataFrame):
+class NetworkAnalyzer(Analyzer):
+    def __init__(self, events_df: pd.DataFrame, limit: int = 2):
         self.events = events_df
         self.graph = None
         self.player_stats = {}
         self.passes = None
+        self.limit = limit
         
     def net_graph(self) -> nx.DiGraph:
         self.graph = nx.DiGraph()
@@ -247,10 +249,13 @@ class NetworkAnalyzer:
         
         return {'nodes': nodes, 'edges': edges}
 
+    def data(self) -> Dict:
+        return {'hubs': self.hub_list(self.limit), 'network': self.net_data()}
+
 
 def team_net(events_df: pd.DataFrame, n_hubs: int = 2) -> Dict:
-    analyzer = NetworkAnalyzer(events_df)
-    return {'hubs': analyzer.hub_list(n_hubs), 'network': analyzer.net_data()}
+    analyzer = NetworkAnalyzer(events_df, n_hubs)
+    return analyzer.data()
 
 
 @lru_cache(maxsize=128)

@@ -30,6 +30,15 @@ const toPct = (val: unknown): number | null => {
     return num <= 1 ? num * 100 : num;
 };
 
+const cleanText = (val: unknown, fallback: string): string => {
+    if (val === null || val === undefined) return fallback;
+    const text = String(val).trim();
+    if (!text) return fallback;
+    const lower = text.toLowerCase();
+    if (lower === 'nan' || lower === 'none' || lower === 'null' || lower === 'undefined') return fallback;
+    return text;
+};
+
 // CSS 3D 미니 피치
 function MiniPitch3D({ moment, index }: { moment: KeyMoment; index: number }) {
     const x = safeNum(moment.position?.x, 75);
@@ -160,8 +169,19 @@ function Modal3D({ moment, onClose, teamName }: { moment: KeyMoment; onClose: ()
     const zoneLabel = zoneKey ? (zoneMap[zoneKey] || zoneKey) : '—';
 
     const failureReasons = (moment.failure_analysis?.reasons || []).filter(Boolean).slice(0, 2).join(' · ') || '—';
-    const suggestionText = moment.suggestion?.description || (moment.suggestion?.reasons || []).join(' · ') || '—';
-    const situationText = moment.original_situation?.description || moment.action || '—';
+    const suggestionText = cleanText(
+        moment.suggestion?.description || (moment.suggestion?.reasons || []).join(' · '),
+        '—'
+    );
+    const situationText = cleanText(
+        moment.original_situation?.description || moment.action,
+        '—'
+    );
+    const positionLabel = cleanText(moment.player_position, '포지션');
+    const actionLabel = cleanText(moment.action, '플레이');
+    const resultLabel = cleanText(moment.result, '결과');
+    const playerLabel = cleanText(moment.player, '선수 정보 없음');
+    const timeLabel = cleanText(moment.time_display, '시간 정보 없음');
 
     return (
         <div
@@ -176,62 +196,73 @@ function Modal3D({ moment, onClose, teamName }: { moment: KeyMoment; onClose: ()
 
                 <div className={styles.modalBody}>
                     <div className={styles.modalHeader}>
-                        <div>
+                        <div className={styles.headerLeft}>
                             <div className={styles.modalMeta}>
                                 프리매치 인사이트 · {teamName || '팀 정보'}
                             </div>
                             <div className={styles.modalTitle}>
-                                {moment.player} <span className={styles.modalDivider}>·</span> {moment.time_display || '시간 정보 없음'}
+                                {playerLabel} <span className={styles.modalDivider}>·</span> {timeLabel}
                             </div>
                         </div>
-                        <button
-                            onClick={onClose}
-                            className={styles.modalClose}
-                        >
-                            닫기
-                        </button>
+                        <div className={styles.headerRight}>
+                            <div className={styles.deltaPill}>
+                                개선 {deltaLabel}
+                            </div>
+                            <button
+                                onClick={onClose}
+                                className={styles.modalClose}
+                            >
+                                닫기
+                            </button>
+                        </div>
                     </div>
 
                     <div className={styles.modalContent}>
-                        <div className={styles.chipRow}>
-                            <span className={`${styles.chip} ${styles.chipPrimary}`}>
-                                {moment.player_position || '포지션'}
+                        <div className={styles.metaRow}>
+                            <span className={`${styles.tag} ${styles.tagPrimary}`}>
+                                {positionLabel}
                             </span>
-                            <span className={`${styles.chip} ${styles.chipNeutral}`}>
-                                {moment.action || '플레이'}
+                            <span className={`${styles.tag} ${styles.tagNeutral}`}>
+                                {actionLabel}
                             </span>
-                            <span className={`${styles.chip} ${styles.chipDanger}`}>
-                                {moment.result || '결과'}
+                            <span className={`${styles.tag} ${styles.tagDanger}`}>
+                                {resultLabel}
+                            </span>
+                            <span className={`${styles.tag} ${styles.tagGhost}`}>
+                                {distanceLabel}
+                            </span>
+                            <span className={`${styles.tag} ${styles.tagGhost}`}>
+                                {zoneLabel}
                             </span>
                         </div>
 
-                        <div className={styles.metricGrid}>
-                            <div className={styles.metricCard}>
-                                <div className={styles.metricLabel}>실제 xG</div>
-                                <div className={styles.metricValue}>
+                        <div className={styles.scoreRow}>
+                            <div className={styles.scoreCard}>
+                                <div className={styles.scoreLabel}>실제 xG</div>
+                                <div className={styles.scoreValue}>
                                     {actualXg !== null ? `${actualXg.toFixed(1)}%` : '—'}
                                 </div>
-                                <div className={styles.metricFoot}>{distanceLabel} · {zoneLabel}</div>
+                                <div className={styles.scoreFoot}>실제 위치</div>
                             </div>
-                            <div className={`${styles.metricCard} ${styles.metricCardSuggest}`}>
-                                <div className={`${styles.metricLabel} ${styles.metricLabelSuggest}`}>AI 제안 xG</div>
-                                <div className={`${styles.metricValue} ${styles.metricValueSuggest}`}>
+                            <div className={styles.scoreBridge}>
+                                <span className={styles.scoreArrow}>→</span>
+                                <span className={styles.scoreDelta}>{deltaLabel}</span>
+                            </div>
+                            <div className={`${styles.scoreCard} ${styles.scoreCardSuggest}`}>
+                                <div className={styles.scoreLabel}>AI 제안 xG</div>
+                                <div className={`${styles.scoreValue} ${styles.scoreValueSuggest}`}>
                                     {expectedXg !== null ? `${expectedXg.toFixed(1)}%` : '—'}
                                 </div>
-                                <div className={`${styles.metricFoot} ${styles.metricFootSuggest}`}>추천 위치 기준</div>
-                            </div>
-                            <div className={`${styles.metricCard} ${styles.metricCardDelta}`}>
-                                <div className={`${styles.metricLabel} ${styles.metricLabelDelta}`}>개선 폭</div>
-                                <div className={`${styles.metricValue} ${styles.metricValueDelta}`}>
-                                    {deltaLabel}
-                                </div>
-                                <div className={`${styles.metricFoot} ${styles.metricFootDelta}`}>xG 기준</div>
+                                <div className={styles.scoreFoot}>추천 위치 기준</div>
                             </div>
                         </div>
 
                         <div className={styles.modalGrid}>
                             <div className={styles.pitchCard}>
-                                <div className={styles.pitchTitle}>3D 포지셔닝</div>
+                                <div className={styles.pitchHead}>
+                                    <div className={styles.pitchTitle}>3D 포지셔닝</div>
+                                    <div className={styles.pitchMeta}>실제 vs AI 추천</div>
+                                </div>
                                 <div className={styles.pitchWrap}>
                                     <Pitch3D moment={moment} width={pitchSize.width} height={pitchSize.height} />
                                 </div>
@@ -252,31 +283,28 @@ function Modal3D({ moment, onClose, teamName }: { moment: KeyMoment; onClose: ()
                             </div>
 
                             <div className={styles.summaryStack}>
-                                <div className={styles.summaryCard}>
-                                    <div className={`${styles.summaryTitle} ${styles.summaryTitleSituation}`}>
-                                        상황 요약
+                                <div className={`${styles.summaryCard} ${styles.summaryCardSituation}`}>
+                                    <div className={styles.summaryHeader}>
+                                        <span className={`${styles.summaryBadge} ${styles.summaryBadgeSituation}`}>상황</span>
+                                        <span className={styles.summaryHeading}>상황 요약</span>
                                     </div>
-                                    <div className={styles.summaryText}>
-                                        {situationText}
-                                    </div>
+                                    <div className={styles.summaryText}>{situationText}</div>
                                 </div>
 
                                 <div className={`${styles.summaryCard} ${styles.summaryCardFail}`}>
-                                    <div className={`${styles.summaryTitle} ${styles.summaryTitleFail}`}>
-                                        실패 원인
+                                    <div className={styles.summaryHeader}>
+                                        <span className={`${styles.summaryBadge} ${styles.summaryBadgeFail}`}>원인</span>
+                                        <span className={styles.summaryHeading}>실패 원인</span>
                                     </div>
-                                    <div className={`${styles.summaryText} ${styles.summaryTextFail}`}>
-                                        {failureReasons}
-                                    </div>
+                                    <div className={styles.summaryText}>{failureReasons}</div>
                                 </div>
 
                                 <div className={`${styles.summaryCard} ${styles.summaryCardSuggest}`}>
-                                    <div className={`${styles.summaryTitle} ${styles.summaryTitleSuggest}`}>
-                                        AI 제안
+                                    <div className={styles.summaryHeader}>
+                                        <span className={`${styles.summaryBadge} ${styles.summaryBadgeSuggest}`}>제안</span>
+                                        <span className={styles.summaryHeading}>AI 제안</span>
                                     </div>
-                                    <div className={`${styles.summaryText} ${styles.summaryTextSuggest}`}>
-                                        {suggestionText}
-                                    </div>
+                                    <div className={styles.summaryText}>{suggestionText}</div>
                                 </div>
                             </div>
                         </div>

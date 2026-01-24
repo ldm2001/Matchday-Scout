@@ -3,10 +3,11 @@ from typing import Dict, List
 from functools import lru_cache
 import numpy as np
 
-from services.data_loader import match_events, team_events
-from services.pattern_analyzer import team_pat
-from services.setpiece_analyzer import team_set
-from services.network_analyzer import net_box
+from ..core.data import match_events, team_events
+from .pattern import team_pat
+from .setpiece import team_set
+from .network import net_box
+from ..core.spec import Analyzer
 
 
 def team_stats(team_id: int, patterns: List[Dict], setpieces: List[Dict], hubs: List[Dict]) -> Dict:
@@ -159,16 +160,27 @@ def sum_text(strengths: List[Dict], weaknesses: List[Dict]) -> str:
     return ". ".join(parts) + "."
 
 
+class TeamAnalyzer(Analyzer):
+    def __init__(self, team_id: int, n_games: int, mark: tuple):
+        self.team_id = team_id
+        self.n_games = n_games
+        self.mark = mark
+
+    def data(self) -> Dict:
+        events = match_events(self.team_id, self.n_games, include_opponent=True)
+        if len(events) == 0:
+            return {}
+        patterns = team_pat(events, self.team_id, n_patterns=5)
+        team_df = team_events(self.team_id, self.n_games)
+        if len(team_df) == 0:
+            return {}
+        setpieces = team_set(team_df, n_top=4)
+        hubs_result = net_box(self.team_id, self.n_games, 3, self.mark)
+        hubs = hubs_result.get("hubs", []) if isinstance(hubs_result, dict) else hubs_result
+        return team_stats(self.team_id, patterns, setpieces, hubs)
+
+
 @lru_cache(maxsize=64)
 def note_box(team_id: int, n_games: int, mark: tuple) -> Dict:
-    events = match_events(team_id, n_games, include_opponent=True)
-    if len(events) == 0:
-        return {}
-    patterns = team_pat(events, team_id, n_patterns=5)
-    team_df = team_events(team_id, n_games)
-    if len(team_df) == 0:
-        return {}
-    setpieces = team_set(team_df, n_top=4)
-    hubs_result = net_box(team_id, n_games, 3, mark)
-    hubs = hubs_result.get("hubs", []) if isinstance(hubs_result, dict) else hubs_result
-    return team_stats(team_id, patterns, setpieces, hubs)
+    analyzer = TeamAnalyzer(team_id, n_games, mark)
+    return analyzer.data()

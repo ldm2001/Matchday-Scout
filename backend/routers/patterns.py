@@ -3,12 +3,10 @@ from fastapi import APIRouter, HTTPException
 from typing import Optional
 import math
 
-import sys
-sys.path.append('..')
-from services.data_loader import match_events, data_stamp
-from services.pattern_analyzer import team_pat, PhaseAnalyzer
-from services.team_analyzer import note_box
-from services.vaep_model import sum_box
+from services.core.data import match_events, data_stamp
+from services.analyzers.pattern import team_pat, PhaseAnalyzer
+from services.analyzers.team import note_box
+from services.vaep.model import sum_box
 
 
 def num(value, default=0.0):

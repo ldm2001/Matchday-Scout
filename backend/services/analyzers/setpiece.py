@@ -6,13 +6,15 @@ from sklearn.preprocessing import StandardScaler
 from typing import List, Dict
 from collections import Counter
 
+from ..core.spec import Analyzer
 
-class SetPieceAnalyzer:
+class SetPieceAnalyzer(Analyzer):
     SETPIECE_TYPES = ['Pass_Corner', 'Pass_Freekick', 'Shot_Freekick']
     ROUTINE_LENGTH = 5
     
-    def __init__(self, events_df: pd.DataFrame):
+    def __init__(self, events_df: pd.DataFrame, limit: int = 2):
         self.events = events_df.sort_values(['game_id', 'period_id', 'time_seconds'])
+        self.limit = limit
         
     def routine_set(self) -> List[Dict]:
         routines = []
@@ -153,6 +155,9 @@ class SetPieceAnalyzer:
                 })
         
         return results
+
+    def data(self) -> List[Dict]:
+        return self.routine_top(self.limit)
     
     def defense_note(self, cluster_info: Dict) -> str:
         zone, swing = cluster_info.get('primary_zone', ''), cluster_info.get('swing_type', '')
@@ -171,5 +176,5 @@ class SetPieceAnalyzer:
 
 
 def team_set(events_df: pd.DataFrame, n_top: int = 2) -> List[Dict]:
-    analyzer = SetPieceAnalyzer(events_df)
-    return analyzer.routine_top(n_top)
+    analyzer = SetPieceAnalyzer(events_df, n_top)
+    return analyzer.data()

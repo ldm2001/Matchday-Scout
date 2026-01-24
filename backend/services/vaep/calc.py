@@ -1,9 +1,9 @@
 # VAEP calculator wrapper
 import pandas as pd
 from typing import Dict, List, Optional
-from .data_loader import matches
-from .vaep_model import prob_vals, vaep_vals, team_vals
-from .spadl import spadl_map, action_rows
+from ..core.data import matches
+from .model import prob_vals, vaep_vals, team_vals
+from ..core.spadl import spadl_map, action_rows
 
 class VAEPCalculator:
     def __init__(self, events_df: pd.DataFrame):

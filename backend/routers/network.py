@@ -1,10 +1,8 @@
 # 네트워크 분석 API 라우터
 from fastapi import APIRouter, HTTPException
 
-import sys
-sys.path.append('..')
-from services.data_loader import team_events, data_stamp
-from services.network_analyzer import net_box, NetworkAnalyzer
+from services.core.data import team_events, data_stamp
+from services.analyzers.network import net_box, NetworkAnalyzer
 
 router = APIRouter()
 

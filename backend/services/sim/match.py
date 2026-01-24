@@ -1,9 +1,10 @@
 # 경기 시뮬레이터 - Pre-Match 승률 예측 및 What-If 분석
 import pandas as pd
-import numpy as np
-from typing import Dict, List, Tuple
-from collections import Counter
+from typing import Dict, List
 import math
+
+from .spec import SimState, Rule
+from .rules import RULES
 
 
 def num(val, default=0.0):
@@ -15,10 +16,13 @@ def num(val, default=0.0):
 
 
 class MatchSimulator:
-    def __init__(self, our_events: pd.DataFrame, opponent_events: pd.DataFrame):
+    def __init__(self, our_events: pd.DataFrame, opponent_events: pd.DataFrame, rules: List[Rule] | None = None):
         self.our_events = our_events
         self.opponent_events = opponent_events
         self.base_stats()
+        self.rules = list(rules) if rules is not None else list(RULES)
+        self.rule_keys = [rule.data(self.state).get("key") for rule in self.rules]
+        self.rule_map = {key: rule for key, rule in zip(self.rule_keys, self.rules) if key}
     
     # 기본 통계 계산
     def base_stats(self):
@@ -37,24 +41,27 @@ class MatchSimulator:
         
         total_events = len(self.our_events) + len(self.opponent_events)
         self.our_possession = len(self.our_events) / max(total_events, 1)
+        self.state = SimState(
+            our_shot_conv=self.our_shot_conversion,
+            opp_shot_conv=self.opp_shot_conversion,
+            our_pass_success=self.our_pass_success,
+            opp_pass_success=self.opp_pass_success,
+            our_possession=self.our_possession,
+        )
     
     # 승률 예측
-    def win_prob(self, tactics: Dict = None) -> Dict:
+    def win_prob(self, rules: List[Rule] | None = None) -> Dict:
         attack_factor = self.our_shot_conversion / max(self.our_shot_conversion + self.opp_shot_conversion, 0.01)
         defense_factor = 1 - (self.opp_shot_conversion / max(self.our_shot_conversion + self.opp_shot_conversion + 0.01, 0.01))
         base_win_prob = (attack_factor * 0.4 + defense_factor * 0.35 + self.our_possession * 0.25)
         
         tactic_bonus, tactic_details = 0.0, []
-        if tactics:
-            if tactics.get('press_hub'):
-                tactic_bonus += 0.05
-                tactic_details.append({'name': '허브 압박', 'effect': '+5%p', 'description': '상대 빌드업 허브를 집중 압박하여 패스 성공률 저하'})
-            if tactics.get('counter_setpiece'):
-                tactic_bonus += 0.03
-                tactic_details.append({'name': '세트피스 대응', 'effect': '+3%p', 'description': '상대 세트피스 패턴에 맞춤 대응 배치'})
-            if tactics.get('exploit_pattern'):
-                tactic_bonus += 0.04
-                tactic_details.append({'name': '패턴 공략', 'effect': '+4%p', 'description': '분석된 상대 약점 패턴을 활용한 공격 루트'})
+        for rule in rules or []:
+            entry = rule.data(self.state)
+            tactic_bonus += num(entry.get("bonus", 0))
+            detail = entry.get("detail")
+            if detail:
+                tactic_details.append(detail)
         
         final_win_prob = min(0.85, base_win_prob + tactic_bonus)
         draw_prob = 0.25 * (1 - abs(final_win_prob - 0.5) * 2)
@@ -69,16 +76,19 @@ class MatchSimulator:
     # What-If 시나리오
     def case(self, scenario: str) -> Dict:
         base_prob = self.win_prob()
-        scenarios = {
-            'press_hub': {'name': '허브 압박 전술 적용', 'description': '상대 빌드업 허브(중앙 미드필더)를 집중 압박', 'tactics': {'press_hub': True}},
-            'counter_setpiece': {'name': '세트피스 대응 강화', 'description': '상대 세트피스 패턴 분석 기반 맞춤 수비', 'tactics': {'counter_setpiece': True}},
-            'exploit_pattern': {'name': '약점 패턴 공략', 'description': '상대 수비 약점 활용 공격 루트', 'tactics': {'exploit_pattern': True}},
-            'all_tactics': {'name': '종합 전술 적용', 'description': '모든 분석 기반 전술 동시 적용', 'tactics': {'press_hub': True, 'counter_setpiece': True, 'exploit_pattern': True}}
-        }
-        selected = scenarios.get(scenario, scenarios['all_tactics'])
-        new_prob = self.win_prob(selected['tactics'])
+        if scenario == "all_tactics":
+            label = "종합 전술 적용"
+            desc = "모든 분석 기반 전술 동시 적용"
+            rule_list = self.rules
+        else:
+            rule = self.rule_map.get(scenario)
+            entry = rule.data(self.state) if rule else None
+            label = entry.get("scenario", {}).get("name") if entry else "종합 전술 적용"
+            desc = entry.get("scenario", {}).get("description") if entry else "모든 분석 기반 전술 동시 적용"
+            rule_list = [rule] if rule else self.rules
+        new_prob = self.win_prob(rule_list)
         return {
-            'scenario': selected['name'], 'description': selected['description'],
+            'scenario': label, 'description': desc,
             'before': base_prob, 'after': new_prob,
             'win_change': round(new_prob['win'] - base_prob['win'], 1),
             'recommendation': self.rec_note(base_prob, new_prob)
@@ -109,8 +119,8 @@ class MatchSimulator:
 def prematch(our_events: pd.DataFrame, opponent_events: pd.DataFrame) -> Dict:
     simulator = MatchSimulator(our_events, opponent_events)
     base_prob = simulator.win_prob()
-    all_tactics_prob = simulator.win_prob({'press_hub': True, 'counter_setpiece': True, 'exploit_pattern': True})
-    scenarios = [simulator.case(s) for s in ['press_hub', 'counter_setpiece', 'exploit_pattern', 'all_tactics']]
+    all_tactics_prob = simulator.win_prob(simulator.rules)
+    scenarios = [simulator.case(s) for s in simulator.rule_keys + ["all_tactics"]]
     return {
         'base_prediction': base_prob, 'optimal_prediction': all_tactics_prob,
         'win_improvement': round(all_tactics_prob['win'] - base_prob['win'], 1),

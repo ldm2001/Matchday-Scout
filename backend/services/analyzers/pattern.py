@@ -9,10 +9,11 @@ import pandas as pd
 from scipy.cluster.hierarchy import linkage, fcluster
 from scipy.spatial.distance import squareform
 
-from .spadl import action_rows, spadl_map
+from ..core.spadl import action_rows, spadl_map
+from ..core.spec import Analyzer
 
 
-class PhaseAnalyzer:
+class PhaseAnalyzer(Analyzer):
     PHASE_GAP_SECONDS = 10
     MIN_PHASE_EVENTS = 3
 
@@ -60,6 +61,9 @@ class PhaseAnalyzer:
 
         return phases
 
+    def data(self) -> List[pd.DataFrame]:
+        return self.phase_list()
+
     def phase_stats(self, phase: pd.DataFrame) -> Dict:
         if phase.empty:
             return {}
@@ -97,10 +101,11 @@ class PhaseAnalyzer:
         return f"{x_zone}_{y_zone}"
 
 
-class PatternMiner:
-    def __init__(self, phases: List[pd.DataFrame]):
+class PatternMiner(Analyzer):
+    def __init__(self, phases: List[pd.DataFrame], limit: int = 3):
         self.phases = phases
         self.phase_stats: List[Dict] = []
+        self.limit = limit
 
     def _phase_stats(self, phase: pd.DataFrame) -> Dict:
         analyzer = PhaseAnalyzer(phase)
@@ -238,6 +243,9 @@ class PatternMiner:
 
         return patterns
 
+    def data(self) -> List[Dict]:
+        return self.pattern_top(self.limit)
+
     def zone_tag(self, x: float, y: float) -> str:
         x_zone = "수비" if x < 35 else ("중앙" if x < 70 else "공격")
         y_zone = "좌측" if y < 22.67 else ("중앙" if y < 45.33 else "우측")
@@ -357,5 +365,5 @@ def team_pat(events_df: pd.DataFrame, team_id: int, n_patterns: int = 3) -> List
         keep = sorted(set(keep))
         team_phases = [team_phases[i] for i in keep]
 
-    miner = PatternMiner(team_phases)
-    return miner.pattern_top(n_patterns)
+    miner = PatternMiner(team_phases, n_patterns)
+    return miner.data()

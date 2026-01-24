@@ -192,6 +192,9 @@ body {
   font-size: 13px;
   color: var(--kl-gray);
   line-height: 1.5;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 /* 히어로 액션 */

@@ -45,6 +45,21 @@ interface TeamStanding {
 type Tab = 'overview' | 'patterns' | 'setpieces' | 'network' | 'simulation';
 const ANALYSIS_GAMES = 100;
 
+type SimResult = {
+  base_prediction: { win: number; draw: number; lose: number };
+  optimal_prediction: { win: number; draw: number; lose: number };
+  win_improvement: number;
+  tactical_suggestions: Array<{ priority: number; tactic: string; reason: string; expected_effect: string; win_prob_change: string }>;
+  scenarios?: Array<{
+    scenario: string;
+    description: string;
+    before: { win: number; draw: number; lose: number };
+    after: { win: number; draw: number; lose: number };
+    win_change: number;
+    recommendation: string;
+  }>;
+};
+
 export default function Home() {
   const [standings, setStandings] = useState<TeamStanding[]>([]);
   const [selectedTeam, setSelectedTeam] = useState<TeamStanding | null>(null);
@@ -62,20 +77,9 @@ export default function Home() {
   // Simulation state
   const [opponent, setOpponent] = useState<TeamStanding | null>(null);
   const [simLoading, setSimLoading] = useState(false);
-  const [simResult, setSimResult] = useState<{
-    base_prediction: { win: number; draw: number; lose: number };
-    optimal_prediction: { win: number; draw: number; lose: number };
-    win_improvement: number;
-    tactical_suggestions: Array<{ priority: number; tactic: string; reason: string; expected_effect: string; win_prob_change: string }>;
-    scenarios?: Array<{
-      scenario: string;
-      description: string;
-      before: { win: number; draw: number; lose: number };
-      after: { win: number; draw: number; lose: number };
-      win_change: number;
-      recommendation: string;
-    }>;
-  } | null>(null);
+  const [simResult, setSimResult] = useState<SimResult | null>(null);
+  const simCacheRef = useRef<Record<string, SimResult>>({});
+  const opponentCacheRef = useRef<Record<number, number>>({});
 
   // Pitch replay state
   interface Phase {
@@ -204,14 +208,19 @@ export default function Home() {
   useEffect(() => {
     if (!selectedTeam || standings.length === 0) {
       setOpponent(null);
-      setSimResult(null);
+      simKeyRef.current = null;
+      return;
+    }
+    const cachedOpponentId = opponentCacheRef.current[selectedTeam.team_id];
+    const cachedOpponent = standings.find((team) => team.team_id === cachedOpponentId);
+    if (cachedOpponent && cachedOpponent.team_id !== selectedTeam.team_id) {
+      setOpponent(cachedOpponent);
       simKeyRef.current = null;
       return;
     }
     const candidates = standings.filter((team) => team.team_id !== selectedTeam.team_id);
     if (candidates.length === 0) {
       setOpponent(null);
-      setSimResult(null);
       simKeyRef.current = null;
       return;
     }
@@ -221,9 +230,19 @@ export default function Home() {
       return teamDiff < closestDiff ? team : closest;
     }, candidates[0]);
     setOpponent((prev) => (prev && prev.team_id === nextOpponent.team_id ? prev : nextOpponent));
-    setSimResult(null);
+    opponentCacheRef.current[selectedTeam.team_id] = nextOpponent.team_id;
     simKeyRef.current = null;
   }, [selectedTeam, standings]);
+
+  useEffect(() => {
+    if (!selectedTeam || !opponent) {
+      setSimResult(null);
+      return;
+    }
+    const key = `${selectedTeam.team_id}-${opponent.team_id}`;
+    const cached = simCacheRef.current[key];
+    setSimResult(cached ?? null);
+  }, [selectedTeam, opponent]);
 
   async function loadPhaseReplay(phaseId: number) {
     if (!selectedTeam) return;
@@ -304,11 +323,12 @@ export default function Home() {
     if (!ourTeam || !oppTeam) return;
     const token = simToken.current + 1;
     simToken.current = token;
+    const key = `${ourTeam.team_id}-${oppTeam.team_id}`;
     setSimLoading(true);
-    setSimResult(null);
     try {
-      const result = await runPreMatchSimulation(ourTeam.team_id, oppTeam.team_id, 5);
+      const result = await runPreMatchSimulation(ourTeam.team_id, oppTeam.team_id, ANALYSIS_GAMES);
       if (simToken.current !== token) return;
+      simCacheRef.current[key] = result;
       setSimResult(result);
     } catch (err) {
       console.error('Simulation failed:', err);
@@ -327,18 +347,37 @@ export default function Home() {
 
   const handleOpponentSelect = (team: TeamStanding) => {
     setOpponent(team);
-    setSimResult(null);
+    if (selectedTeam) {
+      opponentCacheRef.current[selectedTeam.team_id] = team.team_id;
+    }
     simKeyRef.current = null;
   };
 
   const toPct = (val: number) => (Number.isFinite(val) ? (val <= 1 ? val * 100 : val) : 0);
   const fmtPct = (val: number) => `${toPct(val).toFixed(1)}%`;
+  const scenarios = simResult?.scenarios ?? [];
+  const pickScenarioForTactic = (tactic: string) => {
+    if (scenarios.length === 0) return null;
+    const rules: Array<{ match: RegExp; keys: string[] }> = [
+      { match: /허브|중앙|중원|압박/, keys: ['허브', '압박', '중앙'] },
+      { match: /세트피스/, keys: ['세트피스'] },
+      { match: /패턴|약점|루트/, keys: ['패턴', '약점'] },
+      { match: /종합|전체|복합/, keys: ['종합'] },
+    ];
+    const rule = rules.find((item) => item.match.test(tactic));
+    if (rule) {
+      const matched = scenarios.find((sc) => rule.keys.some((key) => sc.scenario.includes(key)));
+      if (matched) return matched;
+    }
+    return scenarios[0];
+  };
 
   const patternCount = analysisLoading && patterns.length === 0 ? '—' : patterns.length;
   const setpieceCount = analysisLoading && setpieces.length === 0 ? '—' : setpieces.length;
   const hubCount = analysisLoading && hubs.length === 0 ? '—' : hubs.length;
   const canRunSim = Boolean(selectedTeam && opponent);
-  const scenarios = simResult?.scenarios ?? [];
+  const simPending = canRunSim && !simResult;
+  const simUpdating = simLoading && Boolean(simResult);
 
   const renderProbBars = (prediction?: { win: number; draw: number; lose: number }) => {
     if (!prediction) {
@@ -463,22 +502,22 @@ export default function Home() {
               <div className="feature-card">
                 <div className="feature-icon">01</div>
                 <h3>공격 패턴 분석</h3>
-                <p>상대팀이 득점으로 연결하는 주요 공격 루트를 시각화합니다.</p>
+                <p>상대 득점 루트를 한눈에 봅니다.</p>
               </div>
               <div className="feature-card">
                 <div className="feature-icon">02</div>
                 <h3>세트피스 인텔리전스</h3>
-                <p>코너킥, 프리킥 시 상대팀의 주요 타겟 존과 수비 제안을 제공합니다.</p>
+                <p>세트피스 약점과 대응을 알려줍니다.</p>
               </div>
               <div className="feature-card">
                 <div className="feature-icon">03</div>
                 <h3>빌드업 허브 탐지</h3>
-                <p>상대 공격의 핵심 연결고리를 찾아 압박 포인트를 제안합니다.</p>
+                <p>빌드업 핵심을 찾아 압박 지점을 제시합니다.</p>
               </div>
               <div className="feature-card">
                 <div className="feature-icon">04</div>
                 <h3>AI 시뮬레이션</h3>
-                <p>전술 조합에 따른 승률 변화를 예측하고 최적의 전략을 추천합니다.</p>
+                <p>전술 조합별 승률을 예측합니다.</p>
               </div>
             </div>
 
@@ -969,47 +1008,52 @@ export default function Home() {
                       <div className={styles.preMatchTitle}>프리매치 예측</div>
                       <div className={styles.preMatchSubtitle}>최근 {ANALYSIS_GAMES}경기 기반 시뮬레이션</div>
                     </div>
-                    <button
-                      onClick={() => {
-                        if (selectedTeam && opponent) {
-                          simKeyRef.current = null;
-                          runSimulation(selectedTeam, opponent);
-                        }
-                      }}
-                      disabled={!canRunSim || simLoading}
-                      className={`${styles.preMatchButton} ${canRunSim && !simLoading ? styles.preMatchButtonActive : styles.preMatchButtonDisabled}`}
-                    >
-                      {simLoading ? '계산 중...' : '재계산'}
-                    </button>
+                    <div className={styles.preMatchActions}>
+                      {simUpdating && <span className={styles.updateBadge}>업데이트 중</span>}
+                      <button
+                        onClick={() => {
+                          if (selectedTeam && opponent) {
+                            simKeyRef.current = null;
+                            runSimulation(selectedTeam, opponent);
+                          }
+                        }}
+                        disabled={!canRunSim || simLoading}
+                        className={`${styles.preMatchButton} ${canRunSim && !simLoading ? styles.preMatchButtonActive : styles.preMatchButtonDisabled}`}
+                      >
+                        {simLoading ? '계산 중...' : '재계산'}
+                      </button>
+                    </div>
                   </div>
 
                   <div className={styles.opponentLabel}>상대팀 선택</div>
                   <div className={styles.opponentList}>
-                    {standings
-                      .filter((team) => team.team_id !== selectedTeam?.team_id)
-                      .map((team) => {
-                        const isActive = opponent?.team_id === team.team_id;
-                        return (
-                          <button
-                            key={team.team_id}
-                            onClick={() => handleOpponentSelect(team)}
-                            className={`${styles.opponentButton} ${isActive ? styles.opponentButtonActive : ''}`}
-                          >
-                            <Image
-                              src={getTeamLogo(team.team_name)}
-                              alt={team.team_name}
-                              className="team-logo"
-                              width={24}
-                              height={24}
-                              onError={(e) => { e.currentTarget.style.visibility = 'hidden'; }}
-                            />
-                            <div className={styles.opponentInfo}>
-                              <div className={styles.opponentName}>{team.team_name}</div>
-                              <div className={styles.opponentRank}>{team.rank}위 · {team.points}점</div>
-                            </div>
-                          </button>
-                        );
-                      })}
+                    {standings.map((team) => {
+                      const isSelf = selectedTeam?.team_id === team.team_id;
+                      const isActive = opponent?.team_id === team.team_id;
+                      return (
+                        <button
+                          key={team.team_id}
+                          onClick={() => {
+                            if (!isSelf) handleOpponentSelect(team);
+                          }}
+                          disabled={isSelf}
+                          className={`${styles.opponentButton} ${isActive ? styles.opponentButtonActive : ''} ${isSelf ? styles.opponentButtonDisabled : ''}`}
+                        >
+                          <Image
+                            src={getTeamLogo(team.team_name)}
+                            alt={team.team_name}
+                            className={styles.opponentLogo}
+                            width={20}
+                            height={20}
+                            onError={(e) => { e.currentTarget.style.visibility = 'hidden'; }}
+                          />
+                          <div className={styles.opponentInfo}>
+                            <div className={styles.opponentName}>{team.team_name}</div>
+                            <div className={styles.opponentRank}>{team.rank}위 · {team.points}점</div>
+                          </div>
+                        </button>
+                      );
+                    })}
                   </div>
                   <div className={styles.opponentHint}>상대팀을 클릭하면 자동으로 예측이 갱신됩니다.</div>
 
@@ -1057,43 +1101,74 @@ export default function Home() {
 
                     <div className={styles.probCard}>
                       <div className={styles.probTitle}>기본 승부 예측</div>
-                      {simLoading ? renderProbSkeleton() : renderProbBars(simResult?.base_prediction)}
+                      {simPending ? renderProbSkeleton() : renderProbBars(simResult?.base_prediction)}
                     </div>
 
                     <div className={styles.probCard}>
                       <div className={styles.probTitle}>전술 적용 후</div>
-                      {simLoading ? renderProbSkeleton() : renderProbBars(simResult?.optimal_prediction)}
+                      {simPending ? renderProbSkeleton() : renderProbBars(simResult?.optimal_prediction)}
                     </div>
                   </div>
 
-                  {simResult && (
+                  {simPending ? (
+                    <div className={styles.improvementPending}>
+                      승률 개선 계산 중...
+                    </div>
+                  ) : simResult ? (
                     <div className={styles.improvement}>
                       승률 개선 {simResult.win_improvement >= 0 ? '+' : ''}{toPct(simResult.win_improvement).toFixed(1)}%p
+                      {simUpdating && <span className={styles.updateTag}>업데이트 중</span>}
                     </div>
-                  )}
+                  ) : null}
 
                   <div className={styles.preMatchDetailGrid}>
                     <div className={styles.detailCard}>
-                      <div className={styles.detailTitle}>핵심 전술 제안</div>
-                      {simLoading ? (
+                      <div className={styles.detailHeader}>
+                        <div className={styles.detailTitle}>핵심 전술 제안</div>
+                        {simUpdating && <span className={styles.detailUpdate}>업데이트 중</span>}
+                      </div>
+                      {simPending ? (
                         <div className={styles.detailHint}>시뮬레이션 결과를 기다리는 중...</div>
                       ) : simResult?.tactical_suggestions?.length ? (
                         <div className={styles.tacticList}>
-                          {simResult.tactical_suggestions.slice(0, 3).map((s) => (
-                            <div key={`${s.priority}-${s.tactic}`} className={styles.tacticItem}>
-                              <div className={styles.tacticRank}>
-                                {s.priority}
+                          {simResult.tactical_suggestions.slice(0, 3).map((s) => {
+                            const relatedScenario = pickScenarioForTactic(s.tactic);
+                            return (
+                              <div key={`${s.priority}-${s.tactic}`} className={styles.tacticItem}>
+                                <div className={styles.tacticRank}>
+                                  {s.priority}
+                                </div>
+                                <div className={styles.tacticContent}>
+                                  <div className={styles.tacticTitleRow}>
+                                    <div className={styles.tacticTitle}>{s.tactic}</div>
+                                    <div className={styles.tacticDeltaBadge}>{s.win_prob_change}</div>
+                                  </div>
+                                  <div className={styles.tacticMeta}>
+                                    <span className={styles.tacticMetaLabel}>근거</span>
+                                    <span className={styles.tacticMetaText}>{s.reason}</span>
+                                  </div>
+                                  <div className={styles.tacticMeta}>
+                                    <span className={styles.tacticMetaLabel}>기대효과</span>
+                                    <span className={styles.tacticMetaText}>{s.expected_effect}</span>
+                                  </div>
+                                  {relatedScenario && (
+                                    <div className={styles.tacticScenario}>
+                                      <div className={styles.tacticScenarioTitle}>관련 시나리오</div>
+                                      <div className={styles.tacticScenarioDesc}>{relatedScenario.description}</div>
+                                      <div className={styles.tacticScenarioMetrics}>
+                                        <span>승</span> {fmtPct(relatedScenario.before.win)} → {fmtPct(relatedScenario.after.win)}
+                                        <span className={styles.tacticScenarioDelta}>
+                                          {relatedScenario.win_change >= 0 ? '+' : ''}
+                                          {toPct(relatedScenario.win_change).toFixed(1)}%p
+                                        </span>
+                                      </div>
+                                      <div className={styles.tacticScenarioNote}>{relatedScenario.recommendation}</div>
+                                    </div>
+                                  )}
+                                </div>
                               </div>
-                              <div>
-                                <div className={styles.tacticTitle}>{s.tactic}</div>
-                                <div className={styles.tacticReason}>{s.reason}</div>
-                                <div className={styles.tacticEffect}>{s.expected_effect}</div>
-                              </div>
-                              <div className={styles.tacticDelta}>
-                                {s.win_prob_change}
-                              </div>
-                            </div>
-                          ))}
+                            );
+                          })}
                         </div>
                       ) : (
                         <div className={styles.detailHint}>전술 제안을 준비 중입니다.</div>
@@ -1101,20 +1176,27 @@ export default function Home() {
                     </div>
 
                     <div className={styles.detailCard}>
-                      <div className={styles.detailTitle}>전술 시나리오</div>
-                      {simLoading ? (
+                      <div className={styles.detailHeader}>
+                        <div className={styles.detailTitle}>전술 시나리오</div>
+                        {simUpdating && <span className={styles.detailUpdate}>업데이트 중</span>}
+                      </div>
+                      {simPending ? (
                         <div className={styles.detailHint}>시나리오 계산 중...</div>
                       ) : scenarios.length ? (
                         <div className={styles.scenarioList}>
                           {scenarios.slice(0, 3).map((sc) => (
                             <div key={sc.scenario} className={styles.scenarioItem}>
-                              <div className={styles.scenarioTitle}>{sc.scenario}</div>
-                              <div className={styles.scenarioDesc}>{sc.description}</div>
-                              <div className={styles.scenarioStats}>
-                                승률 {fmtPct(sc.before.win)} → {fmtPct(sc.after.win)}
-                                <span className={styles.scenarioDelta}>
+                              <div className={styles.scenarioTitleRow}>
+                                <div className={styles.scenarioTitle}>{sc.scenario}</div>
+                                <div className={styles.scenarioDeltaBadge}>
                                   {sc.win_change >= 0 ? '+' : ''}{toPct(sc.win_change).toFixed(1)}%p
-                                </span>
+                                </div>
+                              </div>
+                              <div className={styles.scenarioDesc}>{sc.description}</div>
+                              <div className={styles.scenarioMetrics}>
+                                <div><span>승</span> {fmtPct(sc.before.win)} → {fmtPct(sc.after.win)}</div>
+                                <div><span>무</span> {fmtPct(sc.before.draw)} → {fmtPct(sc.after.draw)}</div>
+                                <div><span>패</span> {fmtPct(sc.before.lose)} → {fmtPct(sc.after.lose)}</div>
                               </div>
                               <div className={styles.scenarioRecommendation}>{sc.recommendation}</div>
                             </div>
