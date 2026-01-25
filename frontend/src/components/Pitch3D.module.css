@@ -1,5 +1,76 @@
-.pitch3d {
-  border-radius: 12px;
+.pitchFrame {
+  border-radius: 16px;
   overflow: hidden;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+  border: 1px solid #e2e8f0;
+  background: #f8fafc;
+  box-shadow: inset 0 0 0 1px rgba(148, 163, 184, 0.12);
+}
+
+.pitchSvg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  font-family: "Space Grotesk", "IBM Plex Sans KR", sans-serif;
+}
+
+.pitchGrid {
+  stroke: rgba(148, 163, 184, 0.25);
+  stroke-width: 0.25;
+  fill: none;
+}
+
+.pitchLine {
+  stroke: #94a3b8;
+  stroke-width: 0.6;
+  fill: none;
+}
+
+.pitchSpot {
+  fill: #94a3b8;
+}
+
+.markerActual {
+  fill: #ef4444;
+  stroke: #ffffff;
+  stroke-width: 0.6;
+}
+
+.markerTarget {
+  fill: none;
+  stroke: #2563eb;
+  stroke-width: 0.9;
+  stroke-dasharray: 1.6 1.4;
+}
+
+.markerTargetCore {
+  fill: #2563eb;
+}
+
+.pathLine {
+  stroke: #f59e0b;
+  stroke-width: 0.6;
+  stroke-dasharray: 2 2;
+}
+
+.pathArrow {
+  fill: #f59e0b;
+}
+
+.markerLabel {
+  font-size: 2.4px;
+  fill: #1f2937;
+  font-weight: 700;
+}
+
+.markerLabelAi {
+  font-size: 2.4px;
+  fill: #1d4ed8;
+  font-weight: 700;
+}
+
+.pathLabel {
+  font-size: 2.3px;
+  fill: #92400e;
+  font-weight: 700;
+  letter-spacing: 0.2px;
 }

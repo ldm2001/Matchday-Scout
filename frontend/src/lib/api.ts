@@ -53,6 +53,19 @@ async function fetchAPI<T>(endpoint: string): Promise<T> {
     return res.json();
 }
 
+async function postAPI<T>(endpoint: string, payload: unknown): Promise<T> {
+    const API_BASE = getApiBase();
+    const res = await fetchWithRetry(`${API_BASE}${endpoint}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+    });
+    if (!res.ok) {
+        throw new Error(`API Error: ${res.status}`);
+    }
+    return res.json();
+}
+
 // Teams API
 export async function getTeams() {
     return fetchAPI<{ teams: import('@/types').Team[]; count: number }>('/api/teams/');
@@ -219,6 +232,74 @@ export async function simulatePressing(teamId: number, playerId: number, nGames:
     }>(`/api/simulation/${teamId}/pressing/${playerId}?n_games=${nGames}`);
 }
 
+// Video analysis API
+export interface VideoClip {
+    url: string;
+    video_id: string;
+    start: number;
+    fps?: number | null;
+    width?: number | null;
+    height?: number | null;
+}
+
+export interface VideoMoment {
+    ts: number;
+    label: string;
+    actual: { x: number; y: number };
+    suggest: { x: number; y: number };
+    delta: number;
+    note: string;
+    conf: number;
+}
+
+export interface VideoReport {
+    job_id: string;
+    status: string;
+    clip: VideoClip;
+    moments: VideoMoment[];
+    notes: string[];
+    mode: string;
+}
+
+export interface VideoJob {
+    job_id: string;
+    status: string;
+    created?: number;
+    updated?: number;
+    report?: VideoReport | null;
+    error?: string | null;
+}
+
+export async function startVideoJob(url: string) {
+    return postAPI<VideoJob>('/api/video/jobs', { url });
+}
+
+export async function uploadVideoJob(file: File, url: string = '') {
+    const API_BASE = getApiBase();
+    const form = new FormData();
+    form.append('file', file);
+    form.append('url', url);
+    const res = await fetchWithRetry(`${API_BASE}/api/video/upload`, {
+        method: 'POST',
+        body: form,
+    });
+    if (!res.ok) {
+        let detail = '';
+        try {
+            const payload = await res.json();
+            detail = payload?.detail || '';
+        } catch {
+            detail = '';
+        }
+        throw new Error(detail || `API Error: ${res.status}`);
+    }
+    return res.json();
+}
+
+export async function getVideoJob(jobId: string) {
+    return fetchAPI<VideoJob>(`/api/video/jobs/${jobId}`);
+}
+
 export async function getFullTacticalAnalysis(teamId: number, nGames: number = 5) {
     return fetchAPI<{
         team_id: number;
@@ -230,19 +311,6 @@ export async function getFullTacticalAnalysis(teamId: number, nGames: number = 5
             summary: string;
         }>;
     }>(`/api/simulation/${teamId}/full-analysis?n_games=${nGames}`);
-}
-
-// Pre-match Simulation
-async function postAPI<T>(endpoint: string, data: object): Promise<T> {
-    // 매번 호출 시점에 API_BASE를 계산 (런타임에 결정)
-    const API_BASE = getApiBase();
-    const res = await fetchWithRetry(`${API_BASE}${endpoint}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data),
-    });
-    if (!res.ok) throw new Error(`API Error: ${res.status}`);
-    return res.json();
 }
 
 export async function runPreMatchSimulation(ourTeamId: number, opponentId: number, nGames: number = 5) {

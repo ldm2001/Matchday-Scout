@@ -1,6 +1,10 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  experimental: {
+    middlewareClientMaxBodySize: "200mb",
+    proxyClientMaxBodySize: "200mb",
+  },
   async rewrites() {
     if (process.env.NODE_ENV === "development") {
       return [

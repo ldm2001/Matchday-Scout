@@ -2,3 +2,4 @@ open_track
 open_track/
 __pycache__/
 *.pyc
+backend/cache/

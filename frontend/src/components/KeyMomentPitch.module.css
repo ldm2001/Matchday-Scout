@@ -119,11 +119,11 @@
   width: 150px;
   height: 97px;
   border-radius: 10px;
-  border: 1px solid #e2e8f0;
+  border: 1px solid #dbe2ea;
   cursor: pointer;
   overflow: hidden;
   background: #f8fafc;
-  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.12);
+  box-shadow: none;
 }
 
 .miniPitchInner {
@@ -137,13 +137,7 @@
 .miniPitchGrass {
   position: absolute;
   inset: 0;
-  background: repeating-linear-gradient(
-    90deg,
-    #2d8c3c 0px,
-    #2d8c3c 18.75px,
-    #35a045 18.75px,
-    #35a045 37.5px
-  );
+  background: linear-gradient(180deg, #eef2f7 0%, #e2e8f0 100%);
 }
 
 .miniPitchSvg {
@@ -154,24 +148,25 @@
 
 .miniMarker {
   position: absolute;
-  width: 12px;
-  height: 12px;
+  width: 10px;
+  height: 10px;
   border-radius: 50%;
-  border: 2px solid white;
-  box-shadow: 0 2px 6px rgba(15, 23, 42, 0.2);
+  border: 2px solid #ffffff;
+  box-shadow: none;
 }
 
 .miniMarkerActual {
-  background: #dc2626;
+  background: #ef4444;
 }
 
 .miniMarkerTarget {
-  background: #16a34a;
+  background: transparent;
+  border-color: #2563eb;
 }
 
 .miniPathLine {
   stroke: #f59e0b;
-  stroke-width: 2;
+  stroke-width: 1.4;
   stroke-dasharray: 4 6;
   stroke-linecap: round;
 }
@@ -185,8 +180,9 @@
   bottom: 4px;
   right: 4px;
   font-size: 9px;
-  color: white;
-  background: rgba(15, 23, 42, 0.6);
+  color: #0f172a;
+  background: rgba(248, 250, 252, 0.85);
+  border: 1px solid #e2e8f0;
   padding: 2px 5px;
   border-radius: 3px;
 }
@@ -450,17 +446,19 @@
 }
 
 .pitchCard {
-  background: #ffffff;
-  border-radius: 16px;
+  background: #f8fafc;
+  border-radius: 18px;
   padding: 14px;
-  border: 1px solid #e5e7eb;
-  box-shadow: none;
+  border: 1px solid #dbe2ea;
+  box-shadow: 0 12px 24px rgba(15, 23, 42, 0.08);
 }
 
 .pitchTitle {
   font-size: 12px;
   color: #0f172a;
-  font-weight: 700;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
 }
 
 .pitchHead {
@@ -498,22 +496,23 @@
 .legendSwatch {
   width: 10px;
   height: 10px;
-  border-radius: 2px;
+  border-radius: 999px;
 }
 
 .legendActual {
-  background: #dc2626;
+  background: #ef4444;
+  border: 2px solid #ffffff;
 }
 
 .legendTarget {
-  border-radius: 999px;
+  background: transparent;
   border: 2px solid #2563eb;
 }
 
 .legendPath {
   width: 16px;
   height: 2px;
-  background: #f59e0b;
+  background: repeating-linear-gradient(90deg, #f59e0b 0 6px, transparent 6px 10px);
   border-radius: 999px;
 }
 

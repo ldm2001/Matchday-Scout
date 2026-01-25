@@ -65,6 +65,12 @@
   padding: 0 2px;
 }
 
+.videoSection {
+  display: grid;
+  gap: 16px;
+  padding: 0 2px;
+}
+
 .preMatchCard {
   border: 1px solid #c7d2fe;
   background: linear-gradient(135deg, #f8fafc 0%, #eef2ff 55%, #eff6ff 100%);

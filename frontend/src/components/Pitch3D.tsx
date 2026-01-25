@@ -1,7 +1,6 @@
 'use client';
 
-import { useRef, useEffect } from 'react';
-import * as THREE from 'three';
+import { useId } from 'react';
 import { KeyMoment } from '@/lib/api';
 import styles from './Pitch3D.module.css';
 
@@ -18,267 +17,127 @@ const safeNum = (val: unknown, defaultVal: number): number => {
 };
 
 export default function Pitch3D({ moment, width = 500, height = 350 }: Pitch3DProps) {
-    const containerRef = useRef<HTMLDivElement>(null);
-    const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
+    const svgId = useId().replace(/:/g, '');
+    const clamp = (val: number, min: number, max: number) => Math.min(max, Math.max(min, val));
 
-    useEffect(() => {
-        if (!containerRef.current) return;
+    const actualX = clamp(safeNum(moment.position?.x, 80), 0, 105);
+    const actualY = clamp(safeNum(moment.position?.y, 34), 0, 68);
+    const suggestX = clamp(
+        safeNum(moment.suggestion?.target_position?.x || moment.suggestion?.target_x, actualX + 8),
+        0,
+        105
+    );
+    const suggestY = clamp(
+        safeNum(moment.suggestion?.target_position?.y || moment.suggestion?.target_y, actualY),
+        0,
+        68
+    );
+    const dx = suggestX - actualX;
+    const dy = suggestY - actualY;
+    const moveDistance = Math.hypot(dx, dy);
+    const dirScale = moveDistance > 0.01 ? 1 / moveDistance : 0;
+    const dirX = moveDistance > 0.01 ? dx * dirScale : 1;
+    const dirY = moveDistance > 0.01 ? dy * dirScale : 0;
+    const perpX = -dirY;
+    const perpY = dirX;
+    const midX = (actualX + suggestX) / 2 + perpX * 1.4;
+    const midY = (actualY + suggestY) / 2 + perpY * 1.4;
+    const pathPad = 2.4;
+    const startX = actualX + dirX * pathPad;
+    const startY = actualY + dirY * pathPad;
+    const endX = suggestX - dirX * pathPad;
+    const endY = suggestY - dirY * pathPad;
+    const labelClampX = (val: number) => clamp(val, 4, 101);
+    const labelClampY = (val: number) => clamp(val, 4, 64);
+    const labelOffset = 3.2;
+    const actualLabelX = labelClampX(actualX - dirX * 2.6 + perpX * labelOffset);
+    const actualLabelY = labelClampY(actualY - dirY * 2.6 + perpY * labelOffset);
+    const aiLabelX = labelClampX(suggestX + dirX * 2.6 + perpX * labelOffset);
+    const aiLabelY = labelClampY(suggestY + dirY * 2.6 + perpY * labelOffset);
+    const anchorFromX = (x: number, fallback: 'start' | 'end') => {
+        if (x < 18) return 'start';
+        if (x > 90) return 'end';
+        return fallback;
+    };
+    const actualAnchor = anchorFromX(actualLabelX, dirX >= 0 ? 'end' : 'start');
+    const aiAnchor = anchorFromX(aiLabelX, dirX >= 0 ? 'start' : 'end');
 
-        // Clear previous renderer
-        if (rendererRef.current) {
-            containerRef.current.removeChild(rendererRef.current.domElement);
-            rendererRef.current.dispose();
-        }
-
-        // Scene
-        const scene = new THREE.Scene();
-        scene.background = new THREE.Color(0x87CEEB); // Sky blue
-
-        // Camera - dramatic angle
-        const camera = new THREE.PerspectiveCamera(35, width / height, 0.1, 1000);
-        camera.position.set(50, 80, 120);
-        camera.lookAt(80, 0, 34);
-
-        // High-quality renderer
-        const renderer = new THREE.WebGLRenderer({
-            antialias: true,
-            alpha: true
-        });
-        renderer.setSize(width, height);
-        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2)); // High DPI
-        renderer.shadowMap.enabled = true;
-        renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-        rendererRef.current = renderer;
-        containerRef.current.appendChild(renderer.domElement);
-
-        // Lighting - more dramatic
-        const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
-        scene.add(ambientLight);
-
-        const sunLight = new THREE.DirectionalLight(0xffffcc, 1);
-        sunLight.position.set(80, 100, 50);
-        sunLight.castShadow = true;
-        sunLight.shadow.mapSize.width = 2048;
-        sunLight.shadow.mapSize.height = 2048;
-        sunLight.shadow.camera.near = 0.5;
-        sunLight.shadow.camera.far = 500;
-        scene.add(sunLight);
-
-        // Grass with stripes
-        const grassCanvas = document.createElement('canvas');
-        grassCanvas.width = 512;
-        grassCanvas.height = 512;
-        const ctx = grassCanvas.getContext('2d')!;
-
-        // Draw stripes
-        for (let i = 0; i < 16; i++) {
-            ctx.fillStyle = i % 2 === 0 ? '#2d8c3c' : '#35a045';
-            ctx.fillRect(0, i * 32, 512, 32);
-        }
-
-        const grassTexture = new THREE.CanvasTexture(grassCanvas);
-        grassTexture.wrapS = THREE.RepeatWrapping;
-        grassTexture.wrapT = THREE.RepeatWrapping;
-        grassTexture.repeat.set(8, 8);
-
-        const pitchGeometry = new THREE.PlaneGeometry(105, 68);
-        const pitchMaterial = new THREE.MeshStandardMaterial({
-            map: grassTexture,
-            side: THREE.DoubleSide,
-            roughness: 0.8
-        });
-        const pitch = new THREE.Mesh(pitchGeometry, pitchMaterial);
-        pitch.rotation.x = -Math.PI / 2;
-        pitch.position.set(52.5, 0, 34);
-        pitch.receiveShadow = true;
-        scene.add(pitch);
-
-        // White lines - thicker
-        const lineMaterial = new THREE.MeshBasicMaterial({ color: 0xffffff });
-
-        // Helper function for thick lines
-        const createThickLine = (points: THREE.Vector3[], thickness: number = 0.3) => {
-            for (let i = 0; i < points.length - 1; i++) {
-                const start = points[i];
-                const end = points[i + 1];
-                const direction = new THREE.Vector3().subVectors(end, start);
-                const length = direction.length();
-
-                const geometry = new THREE.BoxGeometry(length, 0.1, thickness);
-                const line = new THREE.Mesh(geometry, lineMaterial);
-
-                const mid = new THREE.Vector3().addVectors(start, end).multiplyScalar(0.5);
-                line.position.copy(mid);
-                line.position.y = 0.05;
-
-                line.lookAt(end.x, 0.05, end.z);
-                scene.add(line);
-            }
-        };
-
-        // Outline
-        createThickLine([
-            new THREE.Vector3(0, 0, 0),
-            new THREE.Vector3(105, 0, 0)
-        ], 0.4);
-        createThickLine([
-            new THREE.Vector3(105, 0, 0),
-            new THREE.Vector3(105, 0, 68)
-        ], 0.4);
-        createThickLine([
-            new THREE.Vector3(105, 0, 68),
-            new THREE.Vector3(0, 0, 68)
-        ], 0.4);
-        createThickLine([
-            new THREE.Vector3(0, 0, 68),
-            new THREE.Vector3(0, 0, 0)
-        ], 0.4);
-
-        // Center line
-        createThickLine([
-            new THREE.Vector3(52.5, 0, 0),
-            new THREE.Vector3(52.5, 0, 68)
-        ], 0.3);
-
-        // Center circle
-        const circleGeometry = new THREE.RingGeometry(8.8, 9.5, 64);
-        const circleMaterial = new THREE.MeshBasicMaterial({ color: 0xffffff, side: THREE.DoubleSide });
-        const circle = new THREE.Mesh(circleGeometry, circleMaterial);
-        circle.rotation.x = -Math.PI / 2;
-        circle.position.set(52.5, 0.05, 34);
-        scene.add(circle);
-
-        // Penalty box (right)
-        const pbWidth = 16.5;
-        const pbHeight = 40.32;
-        createThickLine([
-            new THREE.Vector3(105 - pbWidth, 0, 34 - pbHeight / 2),
-            new THREE.Vector3(105 - pbWidth, 0, 34 + pbHeight / 2)
-        ], 0.3);
-        createThickLine([
-            new THREE.Vector3(105 - pbWidth, 0, 34 - pbHeight / 2),
-            new THREE.Vector3(105, 0, 34 - pbHeight / 2)
-        ], 0.3);
-        createThickLine([
-            new THREE.Vector3(105 - pbWidth, 0, 34 + pbHeight / 2),
-            new THREE.Vector3(105, 0, 34 + pbHeight / 2)
-        ], 0.3);
-
-        // Goal box (right)
-        const gbWidth = 5.5;
-        const gbHeight = 18.32;
-        createThickLine([
-            new THREE.Vector3(105 - gbWidth, 0, 34 - gbHeight / 2),
-            new THREE.Vector3(105 - gbWidth, 0, 34 + gbHeight / 2)
-        ], 0.25);
-        createThickLine([
-            new THREE.Vector3(105 - gbWidth, 0, 34 - gbHeight / 2),
-            new THREE.Vector3(105, 0, 34 - gbHeight / 2)
-        ], 0.25);
-        createThickLine([
-            new THREE.Vector3(105 - gbWidth, 0, 34 + gbHeight / 2),
-            new THREE.Vector3(105, 0, 34 + gbHeight / 2)
-        ], 0.25);
-
-        // Goal - 3D net frame
-        const goalMaterial = new THREE.MeshStandardMaterial({ color: 0xffffff, metalness: 0.3 });
-
-        // Posts
-        const postGeom = new THREE.CylinderGeometry(0.15, 0.15, 2.44, 16);
-        const leftPost = new THREE.Mesh(postGeom, goalMaterial);
-        leftPost.position.set(105.1, 1.22, 34 - 3.66);
-        scene.add(leftPost);
-
-        const rightPost = new THREE.Mesh(postGeom, goalMaterial);
-        rightPost.position.set(105.1, 1.22, 34 + 3.66);
-        scene.add(rightPost);
-
-        // Crossbar
-        const crossbarGeom = new THREE.CylinderGeometry(0.12, 0.12, 7.32, 16);
-        const crossbar = new THREE.Mesh(crossbarGeom, goalMaterial);
-        crossbar.rotation.x = Math.PI / 2;
-        crossbar.position.set(105.1, 2.44, 34);
-        scene.add(crossbar);
-
-        // Markers
-        const actualX = safeNum(moment.position?.x, 80);
-        const actualY = safeNum(moment.position?.y, 34);
-        const suggestX = safeNum(moment.suggestion?.target_position?.x || moment.suggestion?.target_x, actualX + 8);
-        const suggestY = safeNum(moment.suggestion?.target_position?.y || moment.suggestion?.target_y, actualY);
-
-        // Actual position (RED X mark - failed shot)
-        const xGroup = new THREE.Group();
-        const xMaterial = new THREE.MeshStandardMaterial({
-            color: 0xdc2626,
-            emissive: 0xb91c1c,
-            emissiveIntensity: 0.4
-        });
-        // X bar 1
-        const xBar1Geom = new THREE.BoxGeometry(5, 1.2, 1.2);
-        const xBar1 = new THREE.Mesh(xBar1Geom, xMaterial);
-        xBar1.rotation.y = Math.PI / 4;
-        xGroup.add(xBar1);
-        // X bar 2
-        const xBar2Geom = new THREE.BoxGeometry(5, 1.2, 1.2);
-        const xBar2 = new THREE.Mesh(xBar2Geom, xMaterial);
-        xBar2.rotation.y = -Math.PI / 4;
-        xGroup.add(xBar2);
-        xGroup.position.set(actualX, 2, actualY);
-        xGroup.castShadow = true;
-        scene.add(xGroup);
-
-        // Suggested position (GREEN O ring - AI suggestion)
-        const ringGeometry = new THREE.TorusGeometry(2.5, 0.8, 16, 32);
-        const ringMaterial = new THREE.MeshStandardMaterial({
-            color: 0x16a34a,
-            emissive: 0x15803d,
-            emissiveIntensity: 0.4
-        });
-        const ringMarker = new THREE.Mesh(ringGeometry, ringMaterial);
-        ringMarker.rotation.x = -Math.PI / 2;
-        ringMarker.position.set(suggestX, 2, suggestY);
-        ringMarker.castShadow = true;
-        scene.add(ringMarker);
-
-        // Relocation trail
-        const curve = new THREE.QuadraticBezierCurve3(
-            new THREE.Vector3(actualX, 4, actualY),
-            new THREE.Vector3((actualX + suggestX) / 2, 12, (actualY + suggestY) / 2),
-            new THREE.Vector3(suggestX, 4, suggestY)
-        );
-        const trailMaterial = new THREE.MeshStandardMaterial({
-            color: 0xf59e0b,
-            emissive: 0xb45309,
-            emissiveIntensity: 0.25,
-            transparent: true,
-            opacity: 0.9
-        });
-        const trailGeometry = new THREE.SphereGeometry(0.8, 18, 18);
-        const trailPoints = curve.getPoints(6);
-        trailPoints.slice(1, -1).forEach((point, idx) => {
-            const marker = new THREE.Mesh(trailGeometry, trailMaterial);
-            marker.position.set(point.x, 1.6 + idx * 0.12, point.z);
-            marker.castShadow = true;
-            scene.add(marker);
-        });
-
-        // Render
-        renderer.render(scene, camera);
-
-        // Cleanup
-        return () => {
-            if (containerRef.current && rendererRef.current) {
-                containerRef.current.removeChild(rendererRef.current.domElement);
-            }
-            renderer.dispose();
-        };
-    }, [moment, width, height]);
+    const penaltyBox = { width: 16.5, height: 40.32 };
+    const goalBox = { width: 5.5, height: 18.32 };
+    const boxY = (68 - penaltyBox.height) / 2;
+    const goalBoxY = (68 - goalBox.height) / 2;
 
     return (
-        <div
-            ref={containerRef}
-            className={styles.pitch3d}
-            style={{ width, height }}
-        />
+        <div className={styles.pitchFrame} style={{ width, height }}>
+            <svg
+                className={styles.pitchSvg}
+                viewBox="0 0 105 68"
+                preserveAspectRatio="xMidYMid meet"
+            >
+                <defs>
+                    <linearGradient id={`grass-${svgId}`} x1="0" x2="0" y1="0" y2="1">
+                        <stop offset="0%" stopColor="#eef2f7" />
+                        <stop offset="100%" stopColor="#e2e8f0" />
+                    </linearGradient>
+                    <pattern id={`grid-${svgId}`} width="10" height="10" patternUnits="userSpaceOnUse">
+                        <path d="M 10 0 L 0 0 0 10" className={styles.pitchGrid} />
+                    </pattern>
+                    <marker
+                        id={`arrow-${svgId}`}
+                        markerWidth="4"
+                        markerHeight="4"
+                        refX="3.4"
+                        refY="2"
+                        orient="auto"
+                        markerUnits="userSpaceOnUse"
+                    >
+                        <path d="M0,0 L4,2 L0,4 Z" className={styles.pathArrow} />
+                    </marker>
+                </defs>
+
+                <rect x="0" y="0" width="105" height="68" fill={`url(#grass-${svgId})`} />
+                <rect x="0" y="0" width="105" height="68" fill={`url(#grid-${svgId})`} />
+
+                <rect x="0.5" y="0.5" width="104" height="67" className={styles.pitchLine} />
+                <line x1="52.5" y1="0.5" x2="52.5" y2="67.5" className={styles.pitchLine} />
+                <circle cx="52.5" cy="34" r="9.15" className={styles.pitchLine} />
+                <circle cx="52.5" cy="34" r="0.7" className={styles.pitchSpot} />
+
+                <rect x="0" y={boxY} width={penaltyBox.width} height={penaltyBox.height} className={styles.pitchLine} />
+                <rect x={105 - penaltyBox.width} y={boxY} width={penaltyBox.width} height={penaltyBox.height} className={styles.pitchLine} />
+                <rect x="0" y={goalBoxY} width={goalBox.width} height={goalBox.height} className={styles.pitchLine} />
+                <rect x={105 - goalBox.width} y={goalBoxY} width={goalBox.width} height={goalBox.height} className={styles.pitchLine} />
+                <circle cx="11" cy="34" r="0.6" className={styles.pitchSpot} />
+                <circle cx="94" cy="34" r="0.6" className={styles.pitchSpot} />
+
+                {moveDistance > 1.2 && (
+                    <line
+                        x1={startX}
+                        y1={startY}
+                        x2={endX}
+                        y2={endY}
+                        className={styles.pathLine}
+                        markerEnd={`url(#arrow-${svgId})`}
+                    />
+                )}
+
+                <circle cx={actualX} cy={actualY} r="1.8" className={styles.markerActual} />
+                <circle cx={suggestX} cy={suggestY} r="2.6" className={styles.markerTarget} />
+                <circle cx={suggestX} cy={suggestY} r="0.7" className={styles.markerTargetCore} />
+
+                <text x={actualLabelX} y={actualLabelY} textAnchor={actualAnchor} className={styles.markerLabel}>
+                    실제
+                </text>
+                <text x={aiLabelX} y={aiLabelY} textAnchor={aiAnchor} className={styles.markerLabelAi}>
+                    AI
+                </text>
+
+                {moveDistance > 2 && (
+                    <text x={midX} y={labelClampY(midY - 1)} textAnchor="middle" className={styles.pathLabel}>
+                        {Number.isFinite(moveDistance) ? `${moveDistance.toFixed(1)}m` : ''}
+                    </text>
+                )}
+            </svg>
+        </div>
     );
 }

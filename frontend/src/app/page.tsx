@@ -25,6 +25,7 @@ import PitchReplay from '@/components/PitchReplay';
 import KeyMomentPitch from '@/components/KeyMomentPitch';
 import SetpiecePitch from '@/components/SetpiecePitch';
 import PassNetwork from '@/components/PassNetwork';
+import VideoAnalysis from '@/components/VideoAnalysis';
 import styles from './page.module.css';
 
 interface TeamStanding {
@@ -42,7 +43,7 @@ interface TeamStanding {
   form: string[];
 }
 
-type Tab = 'overview' | 'patterns' | 'setpieces' | 'network' | 'simulation';
+type Tab = 'overview' | 'patterns' | 'setpieces' | 'network' | 'simulation' | 'video';
 const ANALYSIS_GAMES = 100;
 
 type SimResult = {
@@ -317,6 +318,7 @@ export default function Home() {
     { id: 'setpieces', label: '세트피스' },
     { id: 'network', label: '허브 분석' },
     { id: 'simulation', label: '프리매치' },
+    { id: 'video', label: '영상 분석' },
   ];
 
   const runSimulation = useCallback(async (ourTeam: TeamStanding, oppTeam: TeamStanding) => {
@@ -1316,6 +1318,12 @@ export default function Home() {
                     </div>
                   )}
                 </div>
+              </div>
+            )}
+
+            {activeTab === 'video' && (
+              <div className={styles.videoSection}>
+                <VideoAnalysis />
               </div>
             )}
           </>

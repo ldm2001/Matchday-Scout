@@ -69,15 +69,15 @@ function MiniPitch3D({ moment, index }: { moment: KeyMoment; index: number }) {
                 {/* Lines */}
                 <svg viewBox="0 0 150 97" className={styles.miniPitchSvg}>
                     {/* Outline */}
-                    <rect x="2" y="2" width="146" height="93" fill="none" stroke="white" strokeWidth="1.5" />
+                    <rect x="2" y="2" width="146" height="93" fill="none" stroke="#cbd5e1" strokeWidth="1.5" />
                     {/* Center line */}
-                    <line x1="75" y1="2" x2="75" y2="95" stroke="white" strokeWidth="1" />
+                    <line x1="75" y1="2" x2="75" y2="95" stroke="#cbd5e1" strokeWidth="1" />
                     {/* Center circle */}
-                    <circle cx="75" cy="48.5" r="12" fill="none" stroke="white" strokeWidth="1" />
+                    <circle cx="75" cy="48.5" r="12" fill="none" stroke="#cbd5e1" strokeWidth="1" />
                     {/* Right penalty box */}
-                    <rect x="126" y="20" width="22" height="57" fill="none" stroke="white" strokeWidth="1" />
+                    <rect x="126" y="20" width="22" height="57" fill="none" stroke="#cbd5e1" strokeWidth="1" />
                     {/* Right goal box */}
-                    <rect x="140" y="33" width="8" height="31" fill="none" stroke="white" strokeWidth="1" />
+                    <rect x="140" y="33" width="8" height="31" fill="none" stroke="#cbd5e1" strokeWidth="1" />
                 </svg>
 
                 {/* Actual marker (red) */}
@@ -116,7 +116,7 @@ function MiniPitch3D({ moment, index }: { moment: KeyMoment; index: number }) {
 
                 {/* Click hint */}
                 <div className={styles.miniHint}>
-                    🔍 3D
+                    확대
                 </div>
             </div>
         </div>

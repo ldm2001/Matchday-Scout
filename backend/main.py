@@ -3,7 +3,7 @@ import os
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from routers import teams, patterns, setpieces, network, simulation
+from routers import teams, patterns, setpieces, network, simulation, video
 from services.core.data import raw, matches
 from services.vaep.model import vaep_models
 
@@ -28,6 +28,7 @@ app.include_router(patterns.router, prefix="/api/patterns", tags=["Patterns"])
 app.include_router(setpieces.router, prefix="/api/setpieces", tags=["Set-pieces"])
 app.include_router(network.router, prefix="/api/network", tags=["Network"])
 app.include_router(simulation.router, prefix="/api/simulation", tags=["Simulation"])
+app.include_router(video.router, prefix="/api/video", tags=["Video"])
 
 
 @app.get("/")
