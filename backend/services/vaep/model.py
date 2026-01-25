@@ -539,7 +539,7 @@ def team_sum(events: pd.DataFrame, team_id: int, n_top: int = 10, guard: bool = 
             "top_players": [],
             "top_offensive": [],
             "top_defensive": [],
-            "methodology": "VAEP (Decroos et al., 2019)",
+            "methodology": "VAEP",
             "metrics": metrics,
         }
 
@@ -552,7 +552,7 @@ def team_sum(events: pd.DataFrame, team_id: int, n_top: int = 10, guard: bool = 
         "top_players": players[:n_top],
         "top_offensive": sorted(players, key=lambda x: x["offensive_vaep"], reverse=True)[:5],
         "top_defensive": sorted(players, key=lambda x: x["defensive_vaep"], reverse=True)[:5],
-        "methodology": "VAEP (Decroos et al., 2019)",
+        "methodology": "VAEP",
         "metrics": metrics,
     }
 
@@ -578,7 +578,7 @@ def team_vals(events: pd.DataFrame, team_id: int, n_top_actions: int = 5, guard:
             "defensive_vaep": 0.0,
             "player_ranks": [],
             "top_valuable_actions": [],
-            "methodology": "VAEP (Decroos et al., 2019)",
+            "methodology": "VAEP",
             "metrics": metrics,
         }
 
@@ -617,7 +617,7 @@ def team_vals(events: pd.DataFrame, team_id: int, n_top_actions: int = 5, guard:
         "defensive_vaep": round(float(defensive), 3),
         "player_ranks": ratings[:10],
         "top_valuable_actions": top_actions,
-        "methodology": "VAEP (Decroos et al., 2019)",
+        "methodology": "VAEP",
         "metrics": metrics,
     }
 

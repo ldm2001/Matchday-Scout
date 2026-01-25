@@ -250,6 +250,13 @@ export interface VideoMoment {
     delta: number;
     note: string;
     conf: number;
+    overlay?: {
+        actual_px: { x: number; y: number };
+        suggest_px: { x: number; y: number };
+        goal_px: { x: number; y: number };
+        angle: number;
+        quality: number;
+    };
 }
 
 export interface VideoReport {
@@ -259,6 +266,23 @@ export interface VideoReport {
     moments: VideoMoment[];
     notes: string[];
     mode: string;
+    heatmap?: {
+        rows: number;
+        cols: number;
+        max: number;
+        cells: Array<{
+            row: number;
+            col: number;
+            value: number;
+            poly_px: Array<{ x: number; y: number }>;
+        }>;
+        suggest_cells: Array<{
+            row: number;
+            col: number;
+            value: number;
+            poly_px: Array<{ x: number; y: number }>;
+        }>;
+    };
 }
 
 export interface VideoJob {

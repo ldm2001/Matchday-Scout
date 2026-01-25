@@ -2,10 +2,11 @@ import os
 import sys
 from dataclasses import asdict
 from pathlib import Path
-from typing import Dict, List, Tuple
+from typing import Dict, List, Tuple, TYPE_CHECKING
 from urllib.parse import parse_qs, urlparse
 
 import math
+import inspect
 import numpy as np
 
 try:
@@ -23,7 +24,15 @@ try:
 except ImportError:
     YOLO = None
 
-from .model import Clip, Moment, Report
+if TYPE_CHECKING:
+    from ultralytics import YOLO as YOLOType
+
+try:
+    import torch
+except ImportError:
+    torch = None
+
+from .model import Clip, HeatCell, Heatmap, Moment, Overlay, Report
 
 ROOT = Path(__file__).resolve().parents[2]
 CACHE = ROOT / "cache" / "video"
@@ -34,6 +43,39 @@ STEP_SEC = 1
 MAX_SAMPLES = 180
 MIN_CONF = 0.2
 MODEL = None
+HEAT_ROWS = 12
+HEAT_COLS = 16
+
+
+def _allow_torch_globals() -> None:
+    if torch is None:
+        return
+    serial = getattr(torch, "serialization", None)
+    if serial is None:
+        return
+    add = getattr(serial, "add_safe_globals", None)
+    if add is None:
+        return
+    try:
+        from ultralytics.nn.tasks import DetectionModel
+        import torch.nn as nn
+    except Exception:
+        return
+    extra = []
+    extra_nn = []
+    try:
+        import ultralytics.nn.modules as u
+        extra = [obj for _, obj in vars(u).items() if inspect.isclass(obj)]
+    except Exception:
+        extra = []
+    try:
+        extra_nn = [obj for _, obj in vars(nn).items() if inspect.isclass(obj)]
+    except Exception:
+        extra_nn = []
+    try:
+        add([DetectionModel, *extra, *extra_nn])
+    except Exception:
+        return
 
 
 def _guess_profile(browser: str) -> str | None:
@@ -121,11 +163,12 @@ def _clip_from_path(path: Path) -> Clip:
     return Clip(url=str(path), video_id=name, start=0, fps=fps, width=width, height=height)
 
 
-def _model() -> YOLO:
+def _model() -> "YOLOType":
     global MODEL
     if MODEL is None:
         if YOLO is None:
             raise RuntimeError("ultralytics missing")
+        _allow_torch_globals()
         MODEL = YOLO("yolov8n.pt")
     return MODEL
 
@@ -165,6 +208,54 @@ def _norm(val: float, size: float, scale: float) -> float:
     if size <= 0:
         return 0.0
     return _clip(val / size * scale, 0.0, scale)
+
+
+def _pixel_from_pitch(pt: Tuple[float, float], inv: np.ndarray | None, clip: Clip) -> Tuple[float, float]:
+    if cv2 is not None and inv is not None:
+        pack = np.array([[pt]], dtype=np.float32)
+        out = cv2.perspectiveTransform(pack, inv)
+        return float(out[0][0][0]), float(out[0][0][1])
+    width = clip.width or 0
+    height = clip.height or 0
+    if width <= 0 or height <= 0:
+        return 0.0, 0.0
+    return float(pt[0] / 105.0 * width), float(pt[1] / 68.0 * height)
+
+
+def _grid_index(x: float, y: float, rows: int, cols: int) -> Tuple[int, int]:
+    col = int(_clip(x / 105.0 * cols, 0, cols - 1))
+    row = int(_clip(y / 68.0 * rows, 0, rows - 1))
+    return row, col
+
+
+def _heat_cells(grid: List[List[float]], inv: np.ndarray | None, clip: Clip) -> List[HeatCell]:
+    cells: List[HeatCell] = []
+    rows = len(grid)
+    cols = len(grid[0]) if rows else 0
+    for row in range(rows):
+        for col in range(cols):
+            x0 = col / cols * 105.0
+            x1 = (col + 1) / cols * 105.0
+            y0 = row / rows * 68.0
+            y1 = (row + 1) / rows * 68.0
+            p1 = _pixel_from_pitch((x0, y0), inv, clip)
+            p2 = _pixel_from_pitch((x1, y0), inv, clip)
+            p3 = _pixel_from_pitch((x1, y1), inv, clip)
+            p4 = _pixel_from_pitch((x0, y1), inv, clip)
+            cells.append(
+                HeatCell(
+                    row=row,
+                    col=col,
+                    value=float(grid[row][col]),
+                    poly_px=[
+                        {"x": p1[0], "y": p1[1]},
+                        {"x": p2[0], "y": p2[1]},
+                        {"x": p3[0], "y": p3[1]},
+                        {"x": p4[0], "y": p4[1]},
+                    ],
+                )
+            )
+    return cells
 
 
 def _shot_angle(x: float, y: float) -> float:
@@ -283,8 +374,9 @@ class Calib:
         src = _box(np.array(box, dtype=np.float32))
         dst = np.array([[0, 0], [105, 0], [105, 68], [0, 68]], dtype=np.float32)
         mat = cv2.getPerspectiveTransform(src, dst)
+        inv = cv2.getPerspectiveTransform(dst, src)
         quality = _clip(ratio * 1.6, 0.0, 1.0)
-        ctx["calib"] = {"mat": mat, "quality": quality}
+        ctx["calib"] = {"mat": mat, "inv": inv, "quality": quality}
         ctx["notes"].append(f"calib_{quality:.2f}")
         return ctx
 
@@ -431,6 +523,10 @@ class Suggest:
 
     def step(self, ctx: Dict) -> Dict:
         values = ctx.get("values", [])
+        clip = ctx.get("clip")
+        calib = ctx.get("calib", {})
+        inv = calib.get("inv")
+        quality = float(calib.get("quality", 0.0))
         moments: List[Moment] = []
         for item in values:
             x = float(item["x"])
@@ -452,6 +548,18 @@ class Suggest:
             else:
                 label = "빌드업 진행"
             note = f"{lane} · {zone} · 거리 {dist:.1f}m · 각도 {angle:.0f}°"
+            overlay = None
+            if clip is not None:
+                ax, ay = _pixel_from_pitch((x, y), inv, clip)
+                sx2, sy2 = _pixel_from_pitch((sx, sy), inv, clip)
+                gx, gy = _pixel_from_pitch((105.0, 34.0), inv, clip)
+                overlay = Overlay(
+                    actual_px={"x": ax, "y": ay},
+                    suggest_px={"x": sx2, "y": sy2},
+                    goal_px={"x": gx, "y": gy},
+                    angle=angle,
+                    quality=quality,
+                )
             moments.append(
                 Moment(
                     ts=float(item["ts"]),
@@ -461,6 +569,7 @@ class Suggest:
                     delta=float(item["delta"]),
                     note=note,
                     conf=float(item["conf"]),
+                    overlay=overlay,
                 )
             )
         ctx["moments"] = moments
@@ -469,9 +578,44 @@ class Suggest:
         return ctx
 
 
+class Heat:
+    key = "heat"
+
+    def step(self, ctx: Dict) -> Dict:
+        points = ctx.get("points", [])
+        moments = ctx.get("moments", [])
+        clip = ctx.get("clip")
+        calib = ctx.get("calib", {})
+        inv = calib.get("inv")
+        if not points or clip is None:
+            return ctx
+        rows = HEAT_ROWS
+        cols = HEAT_COLS
+        grid = [[0.0 for _ in range(cols)] for _ in range(rows)]
+        for item in points:
+            row, col = _grid_index(float(item["x"]), float(item["y"]), rows, cols)
+            grid[row][col] += float(item.get("conf", 0.0))
+        suggest_grid = [[0.0 for _ in range(cols)] for _ in range(rows)]
+        for moment in moments:
+            row, col = _grid_index(float(moment.suggest["x"]), float(moment.suggest["y"]), rows, cols)
+            suggest_grid[row][col] += max(0.2, float(moment.conf))
+        max_val = max([max(row) for row in grid] + [max(row) for row in suggest_grid] + [0.0])
+        cells = _heat_cells(grid, inv, clip)
+        suggest_cells = _heat_cells(suggest_grid, inv, clip)
+        ctx["heatmap"] = Heatmap(
+            rows=rows,
+            cols=cols,
+            cells=cells,
+            suggest_cells=suggest_cells,
+            max=max_val,
+        )
+        ctx["notes"].append("heatmap_ok")
+        return ctx
+
+
 class Pipe:
     def __init__(self, steps: List = None) -> None:
-        self.steps = steps or [Link(), Calib(), Track(), Event(), Value(), Suggest()]
+        self.steps = steps or [Link(), Calib(), Track(), Event(), Value(), Suggest(), Heat()]
 
     def run(self, job_id: str, url: str, file_path: str | None = None) -> Report:
         ctx: Dict = {
@@ -492,6 +636,7 @@ class Pipe:
             moments=moments,
             notes=ctx["notes"],
             mode=ctx.get("mode", "basic"),
+            heatmap=ctx.get("heatmap"),
         )
         return report
 
@@ -500,4 +645,6 @@ def pack(report: Report) -> Dict:
     data = asdict(report)
     data["clip"] = asdict(report.clip)
     data["moments"] = [asdict(item) for item in report.moments]
+    if report.heatmap is not None:
+        data["heatmap"] = asdict(report.heatmap)
     return data

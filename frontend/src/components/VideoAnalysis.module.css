@@ -50,6 +50,44 @@
   align-items: center;
 }
 
+.controls {
+  display: flex;
+  gap: 14px;
+  flex-wrap: wrap;
+  font-size: 12px;
+  color: #475569;
+}
+
+.controlItem {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  padding: 6px 10px;
+  border-radius: 999px;
+}
+
+.controlRange input[type='range'] {
+  width: 96px;
+}
+
+.controlValue {
+  font-size: 11px;
+  font-weight: 700;
+  color: #0f172a;
+  font-variant-numeric: tabular-nums;
+}
+
+.controlSelect {
+  border: 1px solid #e2e8f0;
+  border-radius: 999px;
+  background: #ffffff;
+  padding: 4px 10px;
+  font-size: 11px;
+  color: #475569;
+}
+
 .input {
   flex: 1;
   padding: 10px 12px;
@@ -111,6 +149,7 @@
   border-radius: 16px;
   overflow: hidden;
   border: 1px solid #e2e8f0;
+  position: relative;
 }
 
 .playerFrame {
@@ -118,6 +157,31 @@
   aspect-ratio: 16 / 9;
   border: 0;
   display: block;
+}
+
+.overlay {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.tacticCard {
+  position: absolute;
+  left: 14px;
+  bottom: 14px;
+  max-width: calc(100% - 28px);
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: rgba(15, 23, 42, 0.72);
+  color: #f8fafc;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.2px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  backdrop-filter: blur(6px);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .placeholder {
@@ -145,6 +209,36 @@
   color: #475569;
   text-transform: uppercase;
   letter-spacing: 0.8px;
+}
+
+.summary {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 10px;
+  display: grid;
+  gap: 6px;
+}
+
+.summaryTitle {
+  font-size: 12px;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.summaryItem {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: #475569;
+}
+
+.summaryDot {
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: #2563eb;
 }
 
 .list {
@@ -194,6 +288,12 @@
   font-size: 11px;
   color: #64748b;
   margin-top: 2px;
+}
+
+.itemMove {
+  font-size: 11px;
+  color: #1d4ed8;
+  margin-top: 3px;
 }
 
 .itemDelta {
