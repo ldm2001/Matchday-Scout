@@ -21,15 +21,15 @@ class Store:
         self._lock = Lock()
         self._jobs: Dict[str, Job] = {}
 
-    def add(self, job: Job) -> None:
+    def slot(self, job: Job) -> None:
         with self._lock:
             self._jobs[job.id] = job
 
-    def one(self, job_id: str) -> Optional[Job]:
+    def item(self, job_id: str) -> Optional[Job]:
         with self._lock:
             return self._jobs.get(job_id)
 
-    def set(self, job_id: str, **vals) -> Optional[Job]:
+    def patch(self, job_id: str, **vals) -> Optional[Job]:
         with self._lock:
             job = self._jobs.get(job_id)
             if not job:

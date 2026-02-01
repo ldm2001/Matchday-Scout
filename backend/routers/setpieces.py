@@ -2,7 +2,7 @@
 from fastapi import APIRouter, HTTPException
 
 from services.core.data import team_events
-from services.analyzers.setpiece import team_set, SetPieceAnalyzer
+from services.analyzers.setpiece import team_list, SetPieceAnalyzer
 
 router = APIRouter()
 
@@ -15,7 +15,7 @@ def setpieces(team_id: int, n_games: int = 5, n_top: int = 2):
         if len(events) == 0:
             raise HTTPException(status_code=404, detail="이벤트 데이터가 없습니다")
         
-        routines = team_set(events, n_top)
+        routines = team_list(events, n_top)
         setpiece_counts = {
             'corners': len(events[events['type_name'] == 'Pass_Corner']),
             'freekicks': len(events[events['type_name'].str.contains('Freekick', na=False)])
@@ -38,7 +38,7 @@ def corners(team_id: int, n_games: int = 5):
             raise HTTPException(status_code=404, detail="이벤트 데이터가 없습니다")
         
         analyzer = SetPieceAnalyzer(events)
-        all_routines = analyzer.routine_set()
+        all_routines = analyzer.routine_list()
         corners = [r for r in all_routines if 'Corner' in r['type']]
         
         if not corners:
@@ -74,7 +74,7 @@ def freekicks(team_id: int, n_games: int = 5):
             raise HTTPException(status_code=404, detail="이벤트 데이터가 없습니다")
         
         analyzer = SetPieceAnalyzer(events)
-        all_routines = analyzer.routine_set()
+        all_routines = analyzer.routine_list()
         freekicks = [r for r in all_routines if 'Freekick' in r['type']]
         
         if not freekicks:

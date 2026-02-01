@@ -47,7 +47,7 @@ HEAT_ROWS = 12
 HEAT_COLS = 16
 
 
-def _allow_torch_globals() -> None:
+def _torch_safe() -> None:
     if torch is None:
         return
     serial = getattr(torch, "serialization", None)
@@ -78,7 +78,7 @@ def _allow_torch_globals() -> None:
         return
 
 
-def _guess_profile(browser: str) -> str | None:
+def _profile_hint(browser: str) -> str | None:
     if sys.platform != "darwin":
         return None
     base = None
@@ -130,7 +130,7 @@ def _sec(val: str) -> int:
     return total
 
 
-def _pick_id(url: str) -> Tuple[str, int]:
+def _vid_id(url: str) -> Tuple[str, int]:
     if not url:
         return "", 0
     info = urlparse(url)
@@ -151,7 +151,7 @@ def _pick_id(url: str) -> Tuple[str, int]:
     return vid, start
 
 
-def _clip_from_path(path: Path) -> Clip:
+def _clip_path(path: Path) -> Clip:
     if cv2 is None:
         raise RuntimeError("opencv missing")
     cap = cv2.VideoCapture(str(path))
@@ -168,7 +168,7 @@ def _model() -> "YOLOType":
     if MODEL is None:
         if YOLO is None:
             raise RuntimeError("ultralytics missing")
-        _allow_torch_globals()
+        _torch_safe()
         MODEL = YOLO("yolov8n.pt")
     return MODEL
 
@@ -210,7 +210,7 @@ def _norm(val: float, size: float, scale: float) -> float:
     return _clip(val / size * scale, 0.0, scale)
 
 
-def _pixel_from_pitch(pt: Tuple[float, float], inv: np.ndarray | None, clip: Clip) -> Tuple[float, float]:
+def _pitch_px(pt: Tuple[float, float], inv: np.ndarray | None, clip: Clip) -> Tuple[float, float]:
     if cv2 is not None and inv is not None:
         pack = np.array([[pt]], dtype=np.float32)
         out = cv2.perspectiveTransform(pack, inv)
@@ -222,7 +222,7 @@ def _pixel_from_pitch(pt: Tuple[float, float], inv: np.ndarray | None, clip: Cli
     return float(pt[0] / 105.0 * width), float(pt[1] / 68.0 * height)
 
 
-def _grid_index(x: float, y: float, rows: int, cols: int) -> Tuple[int, int]:
+def _grid_idx(x: float, y: float, rows: int, cols: int) -> Tuple[int, int]:
     col = int(_clip(x / 105.0 * cols, 0, cols - 1))
     row = int(_clip(y / 68.0 * rows, 0, rows - 1))
     return row, col
@@ -238,10 +238,10 @@ def _heat_cells(grid: List[List[float]], inv: np.ndarray | None, clip: Clip) -> 
             x1 = (col + 1) / cols * 105.0
             y0 = row / rows * 68.0
             y1 = (row + 1) / rows * 68.0
-            p1 = _pixel_from_pitch((x0, y0), inv, clip)
-            p2 = _pixel_from_pitch((x1, y0), inv, clip)
-            p3 = _pixel_from_pitch((x1, y1), inv, clip)
-            p4 = _pixel_from_pitch((x0, y1), inv, clip)
+            p1 = _pitch_px((x0, y0), inv, clip)
+            p2 = _pitch_px((x1, y0), inv, clip)
+            p3 = _pitch_px((x1, y1), inv, clip)
+            p4 = _pitch_px((x0, y1), inv, clip)
             cells.append(
                 HeatCell(
                     row=row,
@@ -290,7 +290,7 @@ def _zone(y: float) -> str:
 class Link:
     key = "link"
 
-    def step(self, ctx: Dict) -> Dict:
+    def unit(self, ctx: Dict) -> Dict:
         if YoutubeDL is None:
             raise RuntimeError("yt_dlp missing")
         if ctx.get("file_path"):
@@ -298,11 +298,11 @@ class Link:
             if not path.exists():
                 raise RuntimeError("file missing")
             ctx["path"] = path
-            ctx["clip"] = _clip_from_path(path)
+            ctx["clip"] = _clip_path(path)
             ctx["notes"].append("file_ok")
             return ctx
         url = ctx["url"]
-        vid, start = _pick_id(url)
+        vid, start = _vid_id(url)
         if not vid:
             ctx["notes"].append("video_id_missing")
         out = str(CACHE / "%(id)s.%(ext)s")
@@ -321,7 +321,7 @@ class Link:
         if not browser and sys.platform == "darwin":
             browser = "chrome"
         if browser and not profile:
-            profile = _guess_profile(browser)
+            profile = _profile_hint(browser)
         if browser:
             opts["cookiesfrombrowser"] = (browser, profile) if profile else (browser,)
             ctx["notes"].append(f"cookie_{browser}")
@@ -346,7 +346,7 @@ class Link:
 class Calib:
     key = "calib"
 
-    def step(self, ctx: Dict) -> Dict:
+    def unit(self, ctx: Dict) -> Dict:
         if cv2 is None:
             raise RuntimeError("opencv missing")
         path = ctx["path"]
@@ -384,7 +384,7 @@ class Calib:
 class Track:
     key = "track"
 
-    def step(self, ctx: Dict) -> Dict:
+    def unit(self, ctx: Dict) -> Dict:
         if cv2 is None:
             raise RuntimeError("opencv missing")
         path = ctx["path"]
@@ -472,7 +472,7 @@ class Track:
 class Event:
     key = "event"
 
-    def step(self, ctx: Dict) -> Dict:
+    def unit(self, ctx: Dict) -> Dict:
         points = ctx.get("points", [])
         goal = (105.0, 34.0)
         rows = []
@@ -506,7 +506,7 @@ class Event:
 class Value:
     key = "value"
 
-    def step(self, ctx: Dict) -> Dict:
+    def unit(self, ctx: Dict) -> Dict:
         events = ctx.get("events", [])
         rows = []
         for item in events:
@@ -521,7 +521,7 @@ class Value:
 class Suggest:
     key = "suggest"
 
-    def step(self, ctx: Dict) -> Dict:
+    def unit(self, ctx: Dict) -> Dict:
         values = ctx.get("values", [])
         clip = ctx.get("clip")
         calib = ctx.get("calib", {})
@@ -550,9 +550,9 @@ class Suggest:
             note = f"{lane} · {zone} · 거리 {dist:.1f}m · 각도 {angle:.0f}°"
             overlay = None
             if clip is not None:
-                ax, ay = _pixel_from_pitch((x, y), inv, clip)
-                sx2, sy2 = _pixel_from_pitch((sx, sy), inv, clip)
-                gx, gy = _pixel_from_pitch((105.0, 34.0), inv, clip)
+                ax, ay = _pitch_px((x, y), inv, clip)
+                sx2, sy2 = _pitch_px((sx, sy), inv, clip)
+                gx, gy = _pitch_px((105.0, 34.0), inv, clip)
                 overlay = Overlay(
                     actual_px={"x": ax, "y": ay},
                     suggest_px={"x": sx2, "y": sy2},
@@ -581,7 +581,7 @@ class Suggest:
 class Heat:
     key = "heat"
 
-    def step(self, ctx: Dict) -> Dict:
+    def unit(self, ctx: Dict) -> Dict:
         points = ctx.get("points", [])
         moments = ctx.get("moments", [])
         clip = ctx.get("clip")
@@ -593,11 +593,11 @@ class Heat:
         cols = HEAT_COLS
         grid = [[0.0 for _ in range(cols)] for _ in range(rows)]
         for item in points:
-            row, col = _grid_index(float(item["x"]), float(item["y"]), rows, cols)
+            row, col = _grid_idx(float(item["x"]), float(item["y"]), rows, cols)
             grid[row][col] += float(item.get("conf", 0.0))
         suggest_grid = [[0.0 for _ in range(cols)] for _ in range(rows)]
         for moment in moments:
-            row, col = _grid_index(float(moment.suggest["x"]), float(moment.suggest["y"]), rows, cols)
+            row, col = _grid_idx(float(moment.suggest["x"]), float(moment.suggest["y"]), rows, cols)
             suggest_grid[row][col] += max(0.2, float(moment.conf))
         max_val = max([max(row) for row in grid] + [max(row) for row in suggest_grid] + [0.0])
         cells = _heat_cells(grid, inv, clip)
@@ -617,7 +617,7 @@ class Pipe:
     def __init__(self, steps: List = None) -> None:
         self.steps = steps or [Link(), Calib(), Track(), Event(), Value(), Suggest(), Heat()]
 
-    def run(self, job_id: str, url: str, file_path: str | None = None) -> Report:
+    def flow(self, job_id: str, url: str, file_path: str | None = None) -> Report:
         ctx: Dict = {
             "job_id": job_id,
             "url": url,
@@ -626,7 +626,7 @@ class Pipe:
             "file_path": file_path,
         }
         for step in self.steps:
-            ctx = step.step(ctx)
+            ctx = step.unit(ctx)
         moments = ctx.get("moments", [])
         status = "empty" if not moments else "ok"
         report = Report(
@@ -641,7 +641,7 @@ class Pipe:
         return report
 
 
-def pack(report: Report) -> Dict:
+def payload(report: Report) -> Dict:
     data = asdict(report)
     data["clip"] = asdict(report.clip)
     data["moments"] = [asdict(item) for item in report.moments]

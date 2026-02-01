@@ -167,12 +167,12 @@ class NetworkAnalyzer(Analyzer):
                 'hub_score': num(stats['hub_score']), 'betweenness': num(stats['betweenness']),
                 'pagerank': num(stats['pagerank']), 'passes_received': num_int(stats['passes_received']),
                 'passes_made': num_int(stats['passes_made']),
-                'key_connections': self.link_set(player_id),
+                'key_connections': self.link_list(player_id),
                 'disruption_impact': self.impact_stat(player_id)
             })
         return hubs
     
-    def link_set(self, player_id, n_connections: int = 3) -> List[Dict]:
+    def link_list(self, player_id, n_connections: int = 3) -> List[Dict]:
         if self.graph is None or player_id not in self.graph.nodes: return []
         
         connections = []

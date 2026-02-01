@@ -5,7 +5,7 @@ import numpy as np
 
 from ..core.data import match_events, team_events
 from .pattern import team_pat
-from .setpiece import team_set
+from .setpiece import team_list
 from .network import net_box
 from ..core.spec import Analyzer
 
@@ -174,7 +174,7 @@ class TeamAnalyzer(Analyzer):
         team_df = team_events(self.team_id, self.n_games)
         if len(team_df) == 0:
             return {}
-        setpieces = team_set(team_df, n_top=4)
+        setpieces = team_list(team_df, n_top=4)
         hubs_result = net_box(self.team_id, self.n_games, 3, self.mark)
         hubs = hubs_result.get("hubs", []) if isinstance(hubs_result, dict) else hubs_result
         return team_stats(self.team_id, patterns, setpieces, hubs)

@@ -70,6 +70,7 @@ export default function Home() {
   const analysisToken = useRef(0);
   const simToken = useRef(0);
   const simKeyRef = useRef<string | null>(null);
+  const simDataRef = useRef<string | null>(null);
 
   const [patterns, setPatterns] = useState<Pattern[]>([]);
   const [setpieces, setSetpieces] = useState<SetPieceRoutine[]>([]);
@@ -79,6 +80,7 @@ export default function Home() {
   const [opponent, setOpponent] = useState<TeamStanding | null>(null);
   const [simLoading, setSimLoading] = useState(false);
   const [simResult, setSimResult] = useState<SimResult | null>(null);
+  const [simPulse, setSimPulse] = useState(false);
   const simCacheRef = useRef<Record<string, SimResult>>({});
   const opponentCacheRef = useRef<Record<number, number>>({});
 
@@ -119,6 +121,7 @@ export default function Home() {
   // VAEP state
   const [vaepData, setVaepData] = useState<VAEPSummary | null>(null);
 
+  // 팀 순위 초기 로딩
   const loadStandings = useCallback(async () => {
     try {
       const standingsData = await getTeamsOverview();
@@ -130,6 +133,7 @@ export default function Home() {
     }
   }, []);
 
+  // 선택 팀 전체 분석 로더
   const loadAnalysis = useCallback(async () => {
     if (!selectedTeam) return;
     const token = analysisToken.current + 1;
@@ -238,13 +242,19 @@ export default function Home() {
   useEffect(() => {
     if (!selectedTeam || !opponent) {
       setSimResult(null);
+      simDataRef.current = null;
       return;
     }
     const key = `${selectedTeam.team_id}-${opponent.team_id}`;
     const cached = simCacheRef.current[key];
-    setSimResult(cached ?? null);
+    if (cached) {
+      setSimResult(cached);
+      simDataRef.current = key;
+    }
   }, [selectedTeam, opponent]);
 
+  // 공격 Phase 리플레이 로더
+  // # phase replay fetch
   async function loadPhaseReplay(phaseId: number) {
     if (!selectedTeam) return;
     const token = analysisToken.current;
@@ -263,6 +273,7 @@ export default function Home() {
     }
   }
 
+  // 놓친 찬스 분석 로더
   async function loadChanceAnalysis(gameId: number) {
     setChanceLoading(true);
     setSelectedMatch(gameId);
@@ -321,6 +332,7 @@ export default function Home() {
     { id: 'video', label: '영상 분석' },
   ];
 
+  // 프리매치 시뮬레이션 실행
   const runSimulation = useCallback(async (ourTeam: TeamStanding, oppTeam: TeamStanding) => {
     if (!ourTeam || !oppTeam) return;
     const token = simToken.current + 1;
@@ -332,6 +344,7 @@ export default function Home() {
       if (simToken.current !== token) return;
       simCacheRef.current[key] = result;
       setSimResult(result);
+      simDataRef.current = key;
     } catch (err) {
       console.error('Simulation failed:', err);
     } finally {
@@ -347,6 +360,7 @@ export default function Home() {
     runSimulation(selectedTeam, opponent);
   }, [selectedTeam, opponent, activeTab, runSimulation]);
 
+  // 상대팀 선택 + 캐시 갱신
   const handleOpponentSelect = (team: TeamStanding) => {
     setOpponent(team);
     if (selectedTeam) {
@@ -355,7 +369,11 @@ export default function Home() {
     simKeyRef.current = null;
   };
 
-  const toPct = (val: number) => (Number.isFinite(val) ? (val <= 1 ? val * 100 : val) : 0);
+  const toPct = (val: number) => {
+    if (!Number.isFinite(val)) return 0;
+    const pct = Math.abs(val) <= 1 ? val * 100 : val;
+    return Math.max(-100, Math.min(100, pct));
+  };
   const fmtPct = (val: number) => `${toPct(val).toFixed(1)}%`;
   const scenarios = simResult?.scenarios ?? [];
   const pickScenarioForTactic = (tactic: string) => {
@@ -378,8 +396,17 @@ export default function Home() {
   const setpieceCount = analysisLoading && setpieces.length === 0 ? '—' : setpieces.length;
   const hubCount = analysisLoading && hubs.length === 0 ? '—' : hubs.length;
   const canRunSim = Boolean(selectedTeam && opponent);
+  const simKey = selectedTeam && opponent ? `${selectedTeam.team_id}-${opponent.team_id}` : null;
+  const simStale = Boolean(simResult && simKey && simDataRef.current !== simKey);
   const simPending = canRunSim && !simResult;
-  const simUpdating = simLoading && Boolean(simResult);
+  const simUpdating = simLoading || simStale;
+
+  useEffect(() => {
+    if (!simKey) return;
+    setSimPulse(true);
+    const timer = setTimeout(() => setSimPulse(false), 600);
+    return () => clearTimeout(timer);
+  }, [simKey, simResult]);
 
   const renderProbBars = (prediction?: { win: number; draw: number; lose: number }) => {
     if (!prediction) {
@@ -487,90 +514,88 @@ export default function Home() {
       {/* 메인 콘텐츠 */}
       <main className="main-content">
         {!selectedTeam ? (
-          <div className="hero-section">
-            <div className="hero-intro">
-              <span className="hero-chip">K리그-서울시립대 공개 AI 경진대회</span>
-              <h1 className="hero-title">
-                경기 전,<br />
-                <span className="gradient-text">승부는 이미 시작된다</span>
-              </h1>
-              <p className="hero-desc">
-                579,307건의 K리그 이벤트 데이터를 AI가 분석하여<br />
-                상대팀 공격 패턴, 세트피스 루틴, 핵심 선수를 파악합니다.
-              </p>
-            </div>
+          <div className="content-scroll">
+            <div className="hero-section">
+              <div className="hero-intro">
+                <span className="hero-chip">K리그-서울시립대 공개 AI 경진대회</span>
+                <h1 className="hero-title">
+                  경기 전,<br />
+                  <span className="gradient-text">승부는 이미 시작된다</span>
+                </h1>
+                <p className="hero-desc">
+                  579,307건의 K리그 이벤트 데이터를 AI가 분석하여<br />
+                  상대팀 공격 패턴, 세트피스 루틴, 핵심 선수를 파악합니다.
+                </p>
+              </div>
 
-            <div className="feature-grid">
-              <div className="feature-card">
-                <div className="feature-icon">01</div>
-                <h3>공격 패턴 분석</h3>
-                <p>상대 득점 루트를 한눈에 봅니다.</p>
+              <div className="feature-grid">
+                <div className="feature-card">
+                  <div className="feature-icon">01</div>
+                  <h3>공격 패턴 분석</h3>
+                  <p>상대 득점 루트를 한눈에 봅니다.</p>
+                </div>
+                <div className="feature-card">
+                  <div className="feature-icon">02</div>
+                  <h3>세트피스 인텔리전스</h3>
+                  <p>세트피스 약점과 대응을 알려줍니다.</p>
+                </div>
+                <div className="feature-card">
+                  <div className="feature-icon">03</div>
+                  <h3>빌드업 허브 탐지</h3>
+                  <p>빌드업 핵심을 찾아 압박 지점을 제시합니다.</p>
+                </div>
+                <div className="feature-card">
+                  <div className="feature-icon">04</div>
+                  <h3>AI 시뮬레이션</h3>
+                  <p>전술 조합별 승률을 예측합니다.</p>
+                </div>
               </div>
-              <div className="feature-card">
-                <div className="feature-icon">02</div>
-                <h3>세트피스 인텔리전스</h3>
-                <p>세트피스 약점과 대응을 알려줍니다.</p>
-              </div>
-              <div className="feature-card">
-                <div className="feature-icon">03</div>
-                <h3>빌드업 허브 탐지</h3>
-                <p>빌드업 핵심을 찾아 압박 지점을 제시합니다.</p>
-              </div>
-              <div className="feature-card">
-                <div className="feature-icon">04</div>
-                <h3>AI 시뮬레이션</h3>
-                <p>전술 조합별 승률을 예측합니다.</p>
-              </div>
-            </div>
 
-            <div className="hero-action">
-              <p>좌측에서 분석할 팀을 선택하세요</p>
-              <div className="quick-stats">
-                <span><strong>12</strong> 팀</span>
-                <span><strong>198</strong> 경기</span>
-                <span><strong>446</strong> 선수</span>
+              <div className="hero-action">
+                <p>좌측에서 분석할 팀을 선택하세요</p>
+                <div className="quick-stats">
+                  <span><strong>12</strong> 팀</span>
+                  <span><strong>198</strong> 경기</span>
+                  <span><strong>446</strong> 선수</span>
+                </div>
               </div>
             </div>
           </div>
         ) : (
           <>
-            <div className="team-header">
-              <Image
-                src={getTeamLogo(selectedTeam.team_name)}
-                alt={selectedTeam.team_name}
-                className="team-header-logo"
-                width={64}
-                height={64}
-                onError={(e) => { e.currentTarget.style.visibility = 'hidden'; }}
-              />
-              <div className="team-header-info">
-                <h1>{selectedTeam.team_name}</h1>
-                <p>
-                  {selectedTeam.rank}위 • {selectedTeam.points}점 • {selectedTeam.wins}승 {selectedTeam.draws}무 {selectedTeam.losses}패
-                </p>
+            <div className="team-top">
+              <div className="team-header">
+                <Image
+                  src={getTeamLogo(selectedTeam.team_name)}
+                  alt={selectedTeam.team_name}
+                  className="team-header-logo"
+                  width={64}
+                  height={64}
+                  onError={(e) => { e.currentTarget.style.visibility = 'hidden'; }}
+                />
+                <div className="team-header-info">
+                  <h1>{selectedTeam.team_name}</h1>
+                  <p>
+                    {selectedTeam.rank}위 • {selectedTeam.points}점 • {selectedTeam.wins}승 {selectedTeam.draws}무 {selectedTeam.losses}패
+                  </p>
+                </div>
+              </div>
+              <div className="tabs">
+                {tabs.map((tab) => (
+                  <button
+                    key={tab.id}
+                    className={`tab ${activeTab === tab.id ? 'active' : ''}`}
+                    onClick={() => setActiveTab(tab.id as Tab)}
+                  >
+                    {tab.label}
+                  </button>
+                ))}
               </div>
             </div>
-            {analysisLoading && (
-              <div className={styles.analysisStatus}>
-                <span className={`spinner ${styles.spinnerSmall}`} />
-                데이터 업데이트 중...
-              </div>
-            )}
 
-            <div className="tabs">
-              {tabs.map((tab) => (
-                <button
-                  key={tab.id}
-                  className={`tab ${activeTab === tab.id ? 'active' : ''}`}
-                  onClick={() => setActiveTab(tab.id as Tab)}
-                >
-                  {tab.label}
-                </button>
-              ))}
-            </div>
-
-            {activeTab === 'overview' && (
-              <div className={styles.overviewScroll}>
+            <div className="content-scroll">
+              {activeTab === 'overview' && (
+                <div className={styles.overviewScroll}>
                 <div className="stats-grid">
                   <div className="stat-card">
                     <div className="stat-value red">{patternCount}</div>
@@ -588,7 +613,7 @@ export default function Home() {
 
                 {patterns[0] && (
                   <div className="card">
-                    <div className="card-title">🎯 가장 위험한 패턴</div>
+                    <div className="card-title">가장 위험한 패턴</div>
                     <div className={`pattern-grid ${styles.patternGridSingle}`}>
                       <div className={styles.patternStatGrid}>
                         <div>
@@ -616,7 +641,7 @@ export default function Home() {
 
                 {hubs[0] && (
                   <div className="card">
-                    <div className="card-title">⚡ 최우선 압박 타겟</div>
+                    <div className="card-title">최우선 압박 타겟</div>
                     <div className="hub-card">
                       <div className="hub-avatar">{hubs[0].position}</div>
                       <div className="hub-info">
@@ -637,7 +662,6 @@ export default function Home() {
                     ) : (
                       <>
                         <div className={`card-title ${styles.teamAnalysisTitle}`}>
-                          <span className={styles.teamAnalysisIcon}>🤖</span>
                           AI 팀 분석
                           <span
                             className={styles.teamAnalysisBadge}
@@ -650,7 +674,7 @@ export default function Home() {
                         </div>
 
                         <p className={styles.teamAnalysisSummary}>
-                          📊 {teamAnalysis.summary}
+                          {teamAnalysis.summary}
                         </p>
 
                         <div className={styles.analysisSplitGrid}>
@@ -708,7 +732,6 @@ export default function Home() {
                     ) : (
                       <>
                         <div className={`card-title ${styles.vaepTitle}`}>
-                          <span className={styles.vaepIcon}>📊</span>
                           선수 공헌도 (VAEP)
                           <span className={styles.vaepBadge}>
                             {vaepData.methodology}
@@ -817,7 +840,7 @@ export default function Home() {
                   {/* 피치 리플레이 + 패턴 가로 배치 */}
                   <div className={styles.patternLayout}>
                     {/* 피치 리플레이 */}
-                    <div className={styles.patternReplay}>
+                    <div className={`${styles.patternReplay} ${replayLoading ? styles.replayEase : ''}`}>
                       {replayLoading ? (
                         <div className={styles.patternLoading}>⏳ 로딩 중...</div>
                       ) : replayEvents.length > 0 ? (
@@ -844,19 +867,16 @@ export default function Home() {
                         📊 패턴 TOP 5
                       </div>
                       <div className={styles.patternSideList}>
-                        {patterns.slice(0, 5).map((pattern, i) => (
-                          <div key={pattern.cluster_id} className={styles.patternSideItem}>
-                            <span className={styles.patternSideRank}>
-                              #{i + 1}
-                            </span>
-                            <span className={styles.patternSideRate}>
-                              {(pattern.shot_conversion_rate * 100).toFixed(0)}%
-                            </span>
-                            <span className={styles.patternSideFreq}>
-                              {pattern.frequency}회
-                            </span>
-                          </div>
-                        ))}
+                        {patterns.slice(0, 5).map((pattern, i) => {
+                          const rate = Math.max(0, Math.min(100, Math.round(pattern.shot_conversion_rate * 100)));
+                          return (
+                            <div key={pattern.cluster_id} className={styles.patternSideItem}>
+                              <span className={styles.patternSideRank}>#{i + 1}</span>
+                              <span className={styles.patternSideRate}>{rate}%</span>
+                              <span className={styles.patternSideFreq}>{pattern.frequency}회</span>
+                            </div>
+                          );
+                        })}
                       </div>
                     </div>
                   </div>
@@ -1003,7 +1023,7 @@ export default function Home() {
             {activeTab === 'simulation' && (
               <div className={styles.preMatchSection}>
                 <div
-                  className={`card ${styles.preMatchCard}`}
+                  className={`card ${styles.preMatchCard} ${simPulse ? styles.simPulse : ''}`}
                 >
                   <div className={styles.preMatchHeader}>
                     <div>
@@ -1059,7 +1079,7 @@ export default function Home() {
                   </div>
                   <div className={styles.opponentHint}>상대팀을 클릭하면 자동으로 예측이 갱신됩니다.</div>
 
-                  <div className={styles.preMatchGrid}>
+                  <div className={`${styles.preMatchGrid} ${simStale ? styles.simDim : ''} ${simPulse ? styles.simPulse : ''}`}>
                     <div className={styles.matchupCard}>
                       <div className={styles.matchupLabel}>매치업</div>
                       <div className={styles.matchupRow}>
@@ -1123,7 +1143,7 @@ export default function Home() {
                     </div>
                   ) : null}
 
-                  <div className={styles.preMatchDetailGrid}>
+                  <div className={`${styles.preMatchDetailGrid} ${simStale ? styles.simDim : ''} ${simPulse ? styles.simPulse : ''}`}>
                     <div className={styles.detailCard}>
                       <div className={styles.detailHeader}>
                         <div className={styles.detailTitle}>핵심 전술 제안</div>
@@ -1211,7 +1231,7 @@ export default function Home() {
                   </div>
                 </div>
 
-                <div>
+                <div className={styles.matchSection}>
                   <div className={styles.matchAnalysisHeader}>
                     <div className={styles.matchAnalysisTitle}>🔍 경기 분석 - 놓친 찬스</div>
                     <p className={styles.matchAnalysisDesc}>
@@ -1253,12 +1273,16 @@ export default function Home() {
                                     <div className={styles.matchTeams}>
                                       {match.home_team} <span className={styles.matchVs}>vs</span> {match.away_team}
                                     </div>
+                                    <div className={styles.matchHint}>
+                                      {isDraw ? '무승부 경기 · 놓친 찬스 확인' : '패배 경기 · 승리 기회 재구성'}
+                                    </div>
                                   </div>
                                   <div className={styles.matchRight}>
                                     <div className={styles.matchScore}>{match.score}</div>
                                     <div className={styles.matchResult} style={{ color: isDraw ? '#d97706' : '#dc2626' }}>
                                       {match.result_text}
                                     </div>
+                                    <div className={styles.matchCta}>분석 보기</div>
                                   </div>
                                 </button>
                               );
@@ -1282,9 +1306,9 @@ export default function Home() {
                       </button>
 
                       {chanceLoading ? (
-                        <div className={styles.analysisLoading}>분석 중입니다...</div>
+                        <div className={`${styles.analysisLoading} animate-fade-in`}>분석 중입니다...</div>
                       ) : chanceAnalysis ? (
-                        <div className="analysis-result">
+                        <div className="analysis-result animate-fade-in">
                           <div className={`card ${styles.analysisCard}`}>
                             <h3 className={styles.analysisCardTitle}>
                               <span className={styles.analysisCardIcon}>💡</span>
@@ -1326,6 +1350,7 @@ export default function Home() {
                 <VideoAnalysis />
               </div>
             )}
+            </div>
           </>
         )}
       </main>

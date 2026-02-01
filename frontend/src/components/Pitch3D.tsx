@@ -42,11 +42,15 @@ export default function Pitch3D({ moment, width = 500, height = 350 }: Pitch3DPr
     const perpY = dirX;
     const midX = (actualX + suggestX) / 2 + perpX * 1.4;
     const midY = (actualY + suggestY) / 2 + perpY * 1.4;
-    const pathPad = 2.4;
-    const startX = actualX + dirX * pathPad;
-    const startY = actualY + dirY * pathPad;
-    const endX = suggestX - dirX * pathPad;
-    const endY = suggestY - dirY * pathPad;
+    const pathPad = 2.2;
+    const minLine = 8;
+    const drawLen = moveDistance > 0.01 ? Math.max(moveDistance, minLine) : minLine;
+    const lineEndX = moveDistance >= minLine ? suggestX : clamp(actualX + dirX * drawLen, 0, 105);
+    const lineEndY = moveDistance >= minLine ? suggestY : clamp(actualY + dirY * drawLen, 0, 68);
+    const startX = clamp(actualX + dirX * pathPad, 0, 105);
+    const startY = clamp(actualY + dirY * pathPad, 0, 68);
+    const endX = clamp(lineEndX - dirX * pathPad, 0, 105);
+    const endY = clamp(lineEndY - dirY * pathPad, 0, 68);
     const labelClampX = (val: number) => clamp(val, 4, 101);
     const labelClampY = (val: number) => clamp(val, 4, 64);
     const labelOffset = 3.2;
@@ -84,14 +88,14 @@ export default function Pitch3D({ moment, width = 500, height = 350 }: Pitch3DPr
                     </pattern>
                     <marker
                         id={`arrow-${svgId}`}
-                        markerWidth="4"
-                        markerHeight="4"
-                        refX="3.4"
-                        refY="2"
+                        markerWidth="6"
+                        markerHeight="6"
+                        refX="5.2"
+                        refY="3"
                         orient="auto"
                         markerUnits="userSpaceOnUse"
                     >
-                        <path d="M0,0 L4,2 L0,4 Z" className={styles.pathArrow} />
+                        <path d="M0,0 L6,3 L0,6 Z" className={styles.pathArrow} />
                     </marker>
                 </defs>
 
@@ -110,7 +114,7 @@ export default function Pitch3D({ moment, width = 500, height = 350 }: Pitch3DPr
                 <circle cx="11" cy="34" r="0.6" className={styles.pitchSpot} />
                 <circle cx="94" cy="34" r="0.6" className={styles.pitchSpot} />
 
-                {moveDistance > 1.2 && (
+                {moveDistance > 0.2 && (
                     <line
                         x1={startX}
                         y1={startY}

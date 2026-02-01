@@ -110,7 +110,7 @@ def chance_log(game_id: int) -> Dict:
     
     game_events = events[events['game_id'] == game_id].copy()
     
-    def key_set(team_id: int, team_events: pd.DataFrame, team_name: str, is_home: bool, limit: int = 2) -> List[Dict]:
+    def key_list(team_id: int, team_events: pd.DataFrame, team_name: str, is_home: bool, limit: int = 2) -> List[Dict]:
         chances = []
         shots = team_events[team_events['type_name'].str.contains('Shot', na=False)]
         
@@ -165,15 +165,15 @@ def chance_log(game_id: int) -> Dict:
         home_events, away_events = game_events[game_events['team_id'] == home_id], game_events[game_events['team_id'] == away_id]
         analysis['chances'] = [
             {'team_id': home_id, 'team_name': match['home_team_name_ko'], 
-             'key_moments': key_set(home_id, home_events, match['home_team_name_ko'], True, 1)},
+             'key_moments': key_list(home_id, home_events, match['home_team_name_ko'], True, 1)},
             {'team_id': away_id, 'team_name': match['away_team_name_ko'],
-             'key_moments': key_set(away_id, away_events, match['away_team_name_ko'], False, 1)}
+             'key_moments': key_list(away_id, away_events, match['away_team_name_ko'], False, 1)}
         ]
         analysis['summary'] = f"무승부 ({home_score}-{away_score}): 양팀 결정적 찬스 분석"
     else:
         loser_events = game_events[game_events['team_id'] == loser_id]
         analysis['chances'] = [{'team_id': loser_id, 'team_name': loser_name,
-            'key_moments': key_set(loser_id, loser_events, loser_name, loser_id == home_id, 2)}]
+            'key_moments': key_list(loser_id, loser_events, loser_name, loser_id == home_id, 2)}]
         analysis['summary'] = f"{loser_name} 패배 분석: 결과를 바꿀 수 있었던 찬스"
     
     return analysis

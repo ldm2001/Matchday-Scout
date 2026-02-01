@@ -4,11 +4,11 @@ from typing import Protocol, Dict, Any
 
 @dataclass(frozen=True)
 class SimState:
-    our_shot_conv: float
-    opp_shot_conv: float
-    our_pass_success: float
-    opp_pass_success: float
-    our_possession: float
+    xg_for: float
+    xg_against: float
+    pass_for: float
+    pass_against: float
+    poss: float
 
 
 class Rule(Protocol):

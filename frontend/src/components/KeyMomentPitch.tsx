@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import dynamic from 'next/dynamic';
 import { KeyMoment } from '@/lib/api';
 import styles from './KeyMomentPitch.module.css';
@@ -127,16 +128,16 @@ function MiniPitch3D({ moment, index }: { moment: KeyMoment; index: number }) {
 function Modal3D({ moment, onClose, teamName }: { moment: KeyMoment; onClose: () => void; teamName: string }) {
     const [pitchSize, setPitchSize] = useState(() => {
         if (typeof window === 'undefined') return { width: 640, height: 410 };
-        const maxWidth = Math.min(720, window.innerWidth - 80);
+        const maxWidth = Math.min(680, window.innerWidth - 80);
         const width = Math.max(320, maxWidth);
-        return { width, height: Math.round(width * 0.64) };
+        return { width, height: Math.round(width * 0.48) };
     });
 
     useEffect(() => {
         const handleResize = () => {
-            const maxWidth = Math.min(720, window.innerWidth - 80);
+            const maxWidth = Math.min(680, window.innerWidth - 80);
             const width = Math.max(320, maxWidth);
-            setPitchSize({ width, height: Math.round(width * 0.64) });
+            setPitchSize({ width, height: Math.round(width * 0.48) });
         };
         handleResize();
         window.addEventListener('resize', handleResize);
@@ -356,6 +357,15 @@ export default function KeyMomentPitch({ moments, teamName }: KeyMomentPitchProp
         import('./Pitch3D');
     }, []);
 
+    useEffect(() => {
+        if (!selectedMoment || typeof document === 'undefined') return;
+        const prevOverflow = document.body.style.overflow;
+        document.body.style.overflow = 'hidden';
+        return () => {
+            document.body.style.overflow = prevOverflow;
+        };
+    }, [selectedMoment]);
+
     if (moments.length === 0) {
         return (
             <div className={styles.empty}>
@@ -419,9 +429,12 @@ export default function KeyMomentPitch({ moments, teamName }: KeyMomentPitchProp
             ))}
 
             {/* 3D 모달 */}
-            {selectedMoment && (
-                <Modal3D moment={selectedMoment} teamName={teamName} onClose={() => setSelectedMoment(null)} />
-            )}
+            {selectedMoment && typeof document !== 'undefined'
+                ? createPortal(
+                    <Modal3D moment={selectedMoment} teamName={teamName} onClose={() => setSelectedMoment(null)} />,
+                    document.body
+                  )
+                : null}
         </div>
     );
 }

@@ -1,4 +1,4 @@
 # video service
-from .flow import kick, grab
+from .flow import job_slot, job_item
 
-__all__ = ['kick', 'grab']
+__all__ = ['job_slot', 'job_item']

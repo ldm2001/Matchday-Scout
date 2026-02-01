@@ -60,7 +60,7 @@ def hub_detail(team_id: int, player_id: int, n_games: int = 5):
         return {
             'team_id': team_id, 'player_id': player_id,
             'player_name': stats['name'], 'position': stats['position'],
-            'stats': stats, 'key_connections': analyzer.link_set(player_id, 5),
+            'stats': stats, 'key_connections': analyzer.link_list(player_id, 5),
             'disruption_impact': analyzer.impact_stat(player_id)
         }
     except HTTPException:

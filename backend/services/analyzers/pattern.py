@@ -147,7 +147,7 @@ class PatternMiner(Analyzer):
                 dist[j, i] = d
         return dist
 
-    def cluster_set(self, n_clusters: int = 100) -> Dict:
+    def cluster_map(self, n_clusters: int = 100) -> Dict:
         if not self.phase_stats:
             self.feat_list()
 
@@ -207,7 +207,7 @@ class PatternMiner(Analyzer):
         return clusters
 
     def pattern_top(self, n_top: int = 3) -> List[Dict]:
-        clusters = self.cluster_set()
+        clusters = self.cluster_map()
         if not clusters:
             return []
 

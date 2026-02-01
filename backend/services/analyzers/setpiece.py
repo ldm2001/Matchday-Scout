@@ -16,7 +16,7 @@ class SetPieceAnalyzer(Analyzer):
         self.events = events_df.sort_values(['game_id', 'period_id', 'time_seconds'])
         self.limit = limit
         
-    def routine_set(self) -> List[Dict]:
+    def routine_list(self) -> List[Dict]:
         routines = []
         
         for game_id in self.events['game_id'].unique():
@@ -120,7 +120,7 @@ class SetPieceAnalyzer(Analyzer):
         return clusters
     
     def routine_top(self, n_top: int = 2) -> List[Dict]:
-        routines = self.routine_set()
+        routines = self.routine_list()
         if not routines:
             return []
         
@@ -175,6 +175,6 @@ class SetPieceAnalyzer(Analyzer):
         return " / ".join(suggestions) if suggestions else "기본 수비 유지"
 
 
-def team_set(events_df: pd.DataFrame, n_top: int = 2) -> List[Dict]:
+def team_list(events_df: pd.DataFrame, n_top: int = 2) -> List[Dict]:
     analyzer = SetPieceAnalyzer(events_df, n_top)
     return analyzer.data()
