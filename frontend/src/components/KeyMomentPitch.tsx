@@ -1,3 +1,4 @@
+// 키 모멘트 피치 컴포넌트 - 놓친 찬스와 AI 추천 포지션 시각화
 'use client';
 
 import { useEffect, useState } from 'react';
@@ -6,6 +7,7 @@ import dynamic from 'next/dynamic';
 import { KeyMoment } from '@/lib/api';
 import styles from './KeyMomentPitch.module.css';
 
+// 3D 피치 컴포넌트 동적 로딩 (SSR 비활성화)
 const Pitch3D = dynamic(() => import('./Pitch3D'), { ssr: false });
 
 interface KeyMomentPitchProps {
@@ -13,6 +15,7 @@ interface KeyMomentPitchProps {
     teamName: string;
 }
 
+// 안전한 숫자 변환 (null/undefined/NaN 처리)
 const safeNum = (val: unknown, defaultVal: number): number => {
     if (val === null || val === undefined) return defaultVal;
     const num = Number(val);
@@ -433,7 +436,7 @@ export default function KeyMomentPitch({ moments, teamName }: KeyMomentPitchProp
                 ? createPortal(
                     <Modal3D moment={selectedMoment} teamName={teamName} onClose={() => setSelectedMoment(null)} />,
                     document.body
-                  )
+                )
                 : null}
         </div>
     );

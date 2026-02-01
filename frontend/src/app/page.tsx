@@ -1,3 +1,4 @@
+// 메인 페이지 컴포넌트 - K리그 전술 분석 대시보드
 'use client';
 
 import { useState, useEffect, useRef, useCallback } from 'react';
@@ -28,6 +29,7 @@ import PassNetwork from '@/components/PassNetwork';
 import VideoAnalysis from '@/components/VideoAnalysis';
 import styles from './page.module.css';
 
+// 팀 순위 정보 타입
 interface TeamStanding {
   team_id: number;
   team_name: string;
@@ -43,9 +45,11 @@ interface TeamStanding {
   form: string[];
 }
 
+// 탭 종류 정의
 type Tab = 'overview' | 'patterns' | 'setpieces' | 'network' | 'simulation' | 'video';
 const ANALYSIS_GAMES = 100;
 
+// 시뮬레이션 결과 타입
 type SimResult = {
   base_prediction: { win: number; draw: number; lose: number };
   optimal_prediction: { win: number; draw: number; lose: number };
@@ -61,6 +65,7 @@ type SimResult = {
   }>;
 };
 
+// 메인 컴포넌트 - 팀 선택, 분석 탭, 시뮬레이션 기능 제공
 export default function Home() {
   const [standings, setStandings] = useState<TeamStanding[]>([]);
   const [selectedTeam, setSelectedTeam] = useState<TeamStanding | null>(null);
@@ -596,760 +601,760 @@ export default function Home() {
             <div className="content-scroll">
               {activeTab === 'overview' && (
                 <div className={styles.overviewScroll}>
-                <div className="stats-grid">
-                  <div className="stat-card">
-                    <div className="stat-value red">{patternCount}</div>
-                    <div className="stat-label">공격 패턴</div>
-                  </div>
-                  <div className="stat-card">
-                    <div className="stat-value blue">{setpieceCount}</div>
-                    <div className="stat-label">세트피스</div>
-                  </div>
-                  <div className="stat-card">
-                    <div className="stat-value green">{hubCount}</div>
-                    <div className="stat-label">빌드업 허브</div>
-                  </div>
-                </div>
-
-                {patterns[0] && (
-                  <div className="card">
-                    <div className="card-title">가장 위험한 패턴</div>
-                    <div className={`pattern-grid ${styles.patternGridSingle}`}>
-                      <div className={styles.patternStatGrid}>
-                        <div>
-                          <div className={`pattern-stat-value ${styles.patternHighlight}`}>
-                            {(patterns[0].shot_conversion_rate * 100).toFixed(1)}%
-                          </div>
-                          <div className="pattern-stat-label">슈팅 전환율</div>
-                        </div>
-                        <div>
-                          <div className="pattern-stat-value">{patterns[0].frequency}</div>
-                          <div className="pattern-stat-label">발생 횟수</div>
-                        </div>
-                        <div>
-                          <div className="pattern-stat-value">{patterns[0].avg_passes.toFixed(1)}</div>
-                          <div className="pattern-stat-label">평균 패스</div>
-                        </div>
-                        <div>
-                          <div className="pattern-stat-value">{patterns[0].avg_duration.toFixed(0)}초</div>
-                          <div className="pattern-stat-label">평균 시간</div>
-                        </div>
-                      </div>
+                  <div className="stats-grid">
+                    <div className="stat-card">
+                      <div className="stat-value red">{patternCount}</div>
+                      <div className="stat-label">공격 패턴</div>
                     </div>
-                  </div>
-                )}
-
-                {hubs[0] && (
-                  <div className="card">
-                    <div className="card-title">최우선 압박 타겟</div>
-                    <div className="hub-card">
-                      <div className="hub-avatar">{hubs[0].position}</div>
-                      <div className="hub-info">
-                        <h4>{hubs[0].player_name}</h4>
-                        <p>허브 점수 {(hubs[0].hub_score * 100).toFixed(0)} • 패스 {hubs[0].passes_made}회</p>
-                      </div>
+                    <div className="stat-card">
+                      <div className="stat-value blue">{setpieceCount}</div>
+                      <div className="stat-label">세트피스</div>
                     </div>
-                  </div>
-                )}
-
-                {/* 팀 AI 분석 */}
-                <div className={styles.analysisSection}>
-                  <div className={`card ${styles.teamAnalysisCard}`}>
-                    {!teamAnalysis ? (
-                      <div className={styles.panelPlaceholder}>
-                        AI 팀 분석 불러오는 중...
-                      </div>
-                    ) : (
-                      <>
-                        <div className={`card-title ${styles.teamAnalysisTitle}`}>
-                          AI 팀 분석
-                          <span
-                            className={styles.teamAnalysisBadge}
-                            style={{
-                              background: teamAnalysis.overall_score >= 70 ? '#16a34a' : teamAnalysis.overall_score >= 50 ? '#f59e0b' : '#dc2626',
-                            }}
-                          >
-                            {teamAnalysis.overall_score}점
-                          </span>
-                        </div>
-
-                        <p className={styles.teamAnalysisSummary}>
-                          {teamAnalysis.summary}
-                        </p>
-
-                        <div className={styles.analysisSplitGrid}>
-                          {/* 강점 */}
-                          <div className={styles.strengthCard}>
-                            <h4 className={styles.strengthTitle}>💪 강점</h4>
-                            {teamAnalysis.strengths.length > 0 ? teamAnalysis.strengths.map((s, i) => (
-                              <div key={i} className={styles.analysisItem}>
-                                <div className={styles.analysisItemHead}>
-                                  <span className={styles.strengthItemTitle}>{s.title}</span>
-                                  <span className={styles.strengthScore}>{s.score}</span>
-                                </div>
-                                <p className={styles.strengthDesc}>{s.description}</p>
-                              </div>
-                            )) : <p className={styles.analysisEmpty}>분석 중...</p>}
-                          </div>
-
-                          {/* 약점 */}
-                          <div className={styles.weaknessCard}>
-                            <h4 className={styles.weaknessTitle}>⚠️ 개선 필요</h4>
-                            {teamAnalysis.weaknesses.length > 0 ? teamAnalysis.weaknesses.map((w, i) => (
-                              <div key={i} className={styles.analysisItem}>
-                                <div className={styles.analysisItemHead}>
-                                  <span className={styles.weaknessItemTitle}>{w.title}</span>
-                                  <span className={styles.weaknessScore}>{w.score}</span>
-                                </div>
-                                <p className={styles.weaknessDesc}>{w.description}</p>
-                              </div>
-                            )) : <p className={styles.analysisEmpty}>약점 없음 👍</p>}
-                          </div>
-                        </div>
-
-                        {/* 인사이트 */}
-                        {teamAnalysis.insights.length > 0 && (
-                          <div className={styles.insightsBox}>
-                            {teamAnalysis.insights.map((insight, i) => (
-                              <div key={i} className={styles.insightItem}>
-                                {insight}
-                              </div>
-                            ))}
-                          </div>
-                        )}
-                      </>
-                    )}
-                  </div>
-                </div>
-
-                {/* VAEP 선수 공헌도 랭킹 */}
-                <div className={styles.vaepSection}>
-                  <div className={`card ${styles.vaepCard}`}>
-                    {!vaepData ? (
-                      <div className={styles.panelPlaceholder}>
-                        VAEP 분석 불러오는 중...
-                      </div>
-                    ) : (
-                      <>
-                        <div className={`card-title ${styles.vaepTitle}`}>
-                          선수 공헌도 (VAEP)
-                          <span className={styles.vaepBadge}>
-                            {vaepData.methodology}
-                          </span>
-                        </div>
-
-                        <p className={styles.vaepSummary}>
-                          총 팀 VAEP: <strong>{vaepData.team_total_vaep.toFixed(1)}</strong>점
-                        </p>
-
-                        <div className={styles.vaepGrid}>
-                          {/* 전체 상위 5 */}
-                          <div className={styles.vaepListCard}>
-                            <h4 className={styles.vaepListTitlePrimary}>🏆 전체 TOP 5</h4>
-                            {vaepData.top_players.slice(0, 5).map((p, i) => (
-                              <div key={p.player_id} className={styles.vaepItemPrimary}>
-                                <span className={styles.vaepPlayerName}>
-                                  <span style={{
-                                    display: 'inline-block',
-                                    width: 18,
-                                    height: 18,
-                                    borderRadius: '50%',
-                                    background: i === 0 ? '#f59e0b' : i === 1 ? '#94a3b8' : i === 2 ? '#b45309' : '#e2e8f0',
-                                    color: i < 3 ? 'white' : '#64748b',
-                                    textAlign: 'center',
-                                    lineHeight: '18px',
-                                    fontSize: 10,
-                                    marginRight: 6,
-                                    fontWeight: 700
-                                  }}>
-                                    {i + 1}
-                                  </span>
-                                  {p.player_name}
-                                </span>
-                                <span className={styles.vaepScorePrimary}>
-                                  {p.total_vaep.toFixed(1)}
-                                </span>
-                              </div>
-                            ))}
-                          </div>
-
-                          {/* 공격 상위 5 */}
-                          <div className={styles.vaepListCard}>
-                            <h4 className={styles.vaepListTitleOff}>⚽ 공격 TOP 5</h4>
-                            {vaepData.top_offensive.slice(0, 5).map((p) => (
-                              <div key={p.player_id} className={styles.vaepItemOff}>
-                                <span className={styles.vaepPlayerName}>{p.player_name}</span>
-                                <span className={styles.vaepScoreOff}>
-                                  {p.offensive_vaep.toFixed(1)}
-                                </span>
-                              </div>
-                            ))}
-                          </div>
-
-                          {/* 수비 상위 5 */}
-                          <div className={styles.vaepListCard}>
-                            <h4 className={styles.vaepListTitleDef}>🛡️ 수비 TOP 5</h4>
-                            {vaepData.top_defensive.slice(0, 5).map((p) => (
-                              <div key={p.player_id} className={styles.vaepItemDef}>
-                                <span className={styles.vaepPlayerName}>{p.player_name}</span>
-                                <span className={styles.vaepScoreDef}>
-                                  {p.defensive_vaep.toFixed(1)}
-                                </span>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      </>
-                    )}
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {activeTab === 'patterns' && (
-              <div>
-                {/* 피치 시각화 섹션 */}
-                <div className={`card ${styles.patternsCard}`}>
-                  <div className={`card-title ${styles.patternsTitle}`}>
-                    ⚽ 경기 상황 리플레이
-                  </div>
-
-                  {/* Phase 선택 - 버튼 스타일 */}
-                  <div className={styles.phaseSection}>
-                    <p className={styles.phaseLabel}>
-                      공격 Phase 선택:
-                    </p>
-                    <div className={styles.phaseList}>
-                      {phases.slice(0, 10).map((ph, idx) => (
-                        <button
-                          key={ph.phase_id}
-                          onClick={() => loadPhaseReplay(ph.phase_id)}
-                          className={`${styles.phaseButton} ${selectedPhase === ph.phase_id ? styles.phaseButtonActive : styles.phaseButtonInactive}`}
-                        >
-                          <div className={styles.phaseTitle}>
-                            Phase {idx + 1} ⚽
-                          </div>
-                          <div className={styles.phaseMeta}>
-                            패스 {ph.passes}회 · {Math.round(ph.duration)}초
-                          </div>
-                        </button>
-                      ))}
+                    <div className="stat-card">
+                      <div className="stat-value green">{hubCount}</div>
+                      <div className="stat-label">빌드업 허브</div>
                     </div>
                   </div>
 
-                  {/* 피치 리플레이 + 패턴 가로 배치 */}
-                  <div className={styles.patternLayout}>
-                    {/* 피치 리플레이 */}
-                    <div className={`${styles.patternReplay} ${replayLoading ? styles.replayEase : ''}`}>
-                      {replayLoading ? (
-                        <div className={styles.patternLoading}>⏳ 로딩 중...</div>
-                      ) : replayEvents.length > 0 ? (
-                        <PitchReplay
-                          events={replayEvents}
-                          isPlaying={isPlaying}
-                          onPlayPause={() => setIsPlaying(!isPlaying)}
-                          playbackSpeed={playbackSpeed}
-                          onSpeedChange={setPlaybackSpeed}
-                        />
-                      ) : (
-                        <div className={styles.patternEmpty}>
-                          <div className={styles.patternEmptyIcon}>🎬</div>
-                          <p className={styles.patternEmptyText}>
-                            위에서 Phase를 선택하세요
-                          </p>
-                        </div>
-                      )}
-                    </div>
-
-                    {/* 패턴 통계 - 컴팩트 세로 배치 */}
-                    <div className={styles.patternSide}>
-                      <div className={styles.patternSideTitle}>
-                        📊 패턴 TOP 5
-                      </div>
-                      <div className={styles.patternSideList}>
-                        {patterns.slice(0, 5).map((pattern, i) => {
-                          const rate = Math.max(0, Math.min(100, Math.round(pattern.shot_conversion_rate * 100)));
-                          return (
-                            <div key={pattern.cluster_id} className={styles.patternSideItem}>
-                              <span className={styles.patternSideRank}>#{i + 1}</span>
-                              <span className={styles.patternSideRate}>{rate}%</span>
-                              <span className={styles.patternSideFreq}>{pattern.frequency}회</span>
+                  {patterns[0] && (
+                    <div className="card">
+                      <div className="card-title">가장 위험한 패턴</div>
+                      <div className={`pattern-grid ${styles.patternGridSingle}`}>
+                        <div className={styles.patternStatGrid}>
+                          <div>
+                            <div className={`pattern-stat-value ${styles.patternHighlight}`}>
+                              {(patterns[0].shot_conversion_rate * 100).toFixed(1)}%
                             </div>
-                          );
-                        })}
+                            <div className="pattern-stat-label">슈팅 전환율</div>
+                          </div>
+                          <div>
+                            <div className="pattern-stat-value">{patterns[0].frequency}</div>
+                            <div className="pattern-stat-label">발생 횟수</div>
+                          </div>
+                          <div>
+                            <div className="pattern-stat-value">{patterns[0].avg_passes.toFixed(1)}</div>
+                            <div className="pattern-stat-label">평균 패스</div>
+                          </div>
+                          <div>
+                            <div className="pattern-stat-value">{patterns[0].avg_duration.toFixed(0)}초</div>
+                            <div className="pattern-stat-label">평균 시간</div>
+                          </div>
+                        </div>
                       </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {activeTab === 'setpieces' && (
-              setpieces.length > 0 ? (
-              <div className={styles.setpieceCard}>
-                {/* 상단 네비게이션 */}
-                <div className={styles.setpieceNav}>
-                  <button
-                    onClick={() => setSetpieceIndex(Math.max(0, setpieceIndex - 1))}
-                    disabled={setpieceIndex === 0}
-                    className={`${styles.setpieceNavButton} ${setpieceIndex === 0 ? styles.setpieceNavButtonDisabled : styles.setpieceNavButtonActive}`}
-                  >
-                    ←
-                  </button>
-
-                  {/* 현재 세트피스 정보 */}
-                  <div className={styles.setpieceInfo}>
-                    <span
-                      className={`${styles.setpieceTag} ${setpieces[setpieceIndex]?.type.includes('Corner') ? styles.setpieceTagCorner : styles.setpieceTagFree}`}
-                    >
-                      {setpieces[setpieceIndex]?.type.includes('Corner') ? '코너킥' : '프리킥'}
-                    </span>
-                    <span className={styles.setpieceRate}>
-                      슈팅 전환율 {(setpieces[setpieceIndex]?.shot_rate * 100).toFixed(0)}%
-                    </span>
-                    <span className={styles.setpieceIndex}>
-                      {setpieceIndex + 1} / {setpieces.length}
-                    </span>
-                  </div>
-
-                  <button
-                    onClick={() => setSetpieceIndex(Math.min(setpieces.length - 1, setpieceIndex + 1))}
-                    disabled={setpieceIndex === setpieces.length - 1}
-                    className={`${styles.setpieceNavButton} ${setpieceIndex === setpieces.length - 1 ? styles.setpieceNavButtonDisabled : styles.setpieceNavButtonActive}`}
-                  >
-                    →
-                  </button>
-                </div>
-
-                {/* 피치 시각화 */}
-                <div className={styles.setpiecePitch}>
-                  <SetpiecePitch routine={setpieces[setpieceIndex]} />
-                </div>
-
-                {/* 하단 통계 */}
-                <div className={styles.setpieceStats}>
-                  <div className={styles.setpieceStat}>
-                    <div className={styles.setpieceStatValue}>{setpieces[setpieceIndex]?.frequency}</div>
-                    <div className={styles.setpieceStatLabel}>발생 횟수</div>
-                  </div>
-                  <div className={styles.setpieceStat}>
-                    <div className={styles.setpieceStatValue}>
-                      {setpieces[setpieceIndex]?.swing_type === 'inswing' ? '인스윙' : '아웃스윙'}
-                    </div>
-                    <div className={styles.setpieceStatLabel}>킥 타입</div>
-                  </div>
-                  <div className={styles.setpieceStat}>
-                    <div className={styles.setpieceStatValue}>
-                      {(() => {
-                        const zone = setpieces[setpieceIndex]?.primary_zone || '';
-                        const zoneMap: Record<string, string> = {
-                          'far_post': '먼 포스트',
-                          'near_post': '가까운 포스트',
-                          'center': '중앙',
-                          'central': '중앙',
-                          'penalty_spot': '페널티 스팟',
-                          'six_yard': '6야드 박스',
-                          'edge_box': '박스 경계',
-                          'edge_of_box': '박스 경계',
-                          'unknown': '미정',
-                          'Unknown': '미정',
-                          '': '미정'
-                        };
-                        return zoneMap[zone] || zone;
-                      })()}
-                    </div>
-                    <div className={styles.setpieceStatLabel}>타겟존</div>
-                  </div>
-                </div>
-
-                {/* 수비 제안 */}
-                <div className={styles.setpieceSuggest}>
-                  💡 {setpieces[setpieceIndex]?.defense_suggestion}
-                </div>
-              </div>
-              ) : (
-                <div className={`card ${styles.setpieceEmpty}`}>
-                  {analysisLoading ? '세트피스 데이터를 불러오는 중...' : '세트피스 데이터가 없습니다.'}
-                </div>
-              )
-            )}
-
-            {activeTab === 'network' && (
-              <div className={styles.networkScroll}>
-                {/* 패스 네트워크 시각화 */}
-                <div className={styles.networkChart}>
-                  {networkGraph ? (
-                    <PassNetwork
-                      nodes={networkGraph.nodes}
-                      edges={networkGraph.edges}
-                    />
-                  ) : (
-                    <div className={`card ${styles.networkPlaceholder}`}>
-                      네트워크 로딩 중...
                     </div>
                   )}
-                </div>
 
-                {/* 허브 선수 카드 */}
-                <div className="pattern-grid">
-                  {hubs.map((hub) => (
-                    <div key={hub.player_id} className="card">
+                  {hubs[0] && (
+                    <div className="card">
+                      <div className="card-title">최우선 압박 타겟</div>
                       <div className="hub-card">
-                        <div className="hub-avatar">{hub.position}</div>
-                        <div className={`hub-info ${styles.hubInfo}`}>
-                          <h4>{hub.player_name}</h4>
-                          <p>{hub.main_position} • 허브 점수 {(hub.hub_score * 100).toFixed(0)}</p>
+                        <div className="hub-avatar">{hubs[0].position}</div>
+                        <div className="hub-info">
+                          <h4>{hubs[0].player_name}</h4>
+                          <p>허브 점수 {(hubs[0].hub_score * 100).toFixed(0)} • 패스 {hubs[0].passes_made}회</p>
                         </div>
                       </div>
-                      <div className={styles.hubStatsGrid}>
-                        <div className={`${styles.hubStat} ${styles.hubStatReceive}`}>
-                          <div className={styles.hubStatValueReceive}>{hub.passes_received}</div>
-                          <div className={styles.hubStatLabel}>패스 수신</div>
-                        </div>
-                        <div className={`${styles.hubStat} ${styles.hubStatPass}`}>
-                          <div className={styles.hubStatValuePass}>{hub.passes_made}</div>
-                          <div className={styles.hubStatLabel}>패스 시도</div>
-                        </div>
-                      </div>
-                      <p className={styles.hubImpact}>
-                        {hub.disruption_impact?.description || '압박 타겟'}
-                      </p>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {activeTab === 'simulation' && (
-              <div className={styles.preMatchSection}>
-                <div
-                  className={`card ${styles.preMatchCard} ${simPulse ? styles.simPulse : ''}`}
-                >
-                  <div className={styles.preMatchHeader}>
-                    <div>
-                      <div className={styles.preMatchTitle}>프리매치 예측</div>
-                      <div className={styles.preMatchSubtitle}>최근 {ANALYSIS_GAMES}경기 기반 시뮬레이션</div>
-                    </div>
-                    <div className={styles.preMatchActions}>
-                      {simUpdating && <span className={styles.updateBadge}>업데이트 중</span>}
-                      <button
-                        onClick={() => {
-                          if (selectedTeam && opponent) {
-                            simKeyRef.current = null;
-                            runSimulation(selectedTeam, opponent);
-                          }
-                        }}
-                        disabled={!canRunSim || simLoading}
-                        className={`${styles.preMatchButton} ${canRunSim && !simLoading ? styles.preMatchButtonActive : styles.preMatchButtonDisabled}`}
-                      >
-                        {simLoading ? '계산 중...' : '재계산'}
-                      </button>
-                    </div>
-                  </div>
-
-                  <div className={styles.opponentLabel}>상대팀 선택</div>
-                  <div className={styles.opponentList}>
-                    {standings.map((team) => {
-                      const isSelf = selectedTeam?.team_id === team.team_id;
-                      const isActive = opponent?.team_id === team.team_id;
-                      return (
-                        <button
-                          key={team.team_id}
-                          onClick={() => {
-                            if (!isSelf) handleOpponentSelect(team);
-                          }}
-                          disabled={isSelf}
-                          className={`${styles.opponentButton} ${isActive ? styles.opponentButtonActive : ''} ${isSelf ? styles.opponentButtonDisabled : ''}`}
-                        >
-                          <Image
-                            src={getTeamLogo(team.team_name)}
-                            alt={team.team_name}
-                            className={styles.opponentLogo}
-                            width={20}
-                            height={20}
-                            onError={(e) => { e.currentTarget.style.visibility = 'hidden'; }}
-                          />
-                          <div className={styles.opponentInfo}>
-                            <div className={styles.opponentName}>{team.team_name}</div>
-                            <div className={styles.opponentRank}>{team.rank}위 · {team.points}점</div>
-                          </div>
-                        </button>
-                      );
-                    })}
-                  </div>
-                  <div className={styles.opponentHint}>상대팀을 클릭하면 자동으로 예측이 갱신됩니다.</div>
-
-                  <div className={`${styles.preMatchGrid} ${simStale ? styles.simDim : ''} ${simPulse ? styles.simPulse : ''}`}>
-                    <div className={styles.matchupCard}>
-                      <div className={styles.matchupLabel}>매치업</div>
-                      <div className={styles.matchupRow}>
-                        <div className={styles.matchupTeam}>
-                          <Image
-                            src={getTeamLogo(selectedTeam.team_name)}
-                            alt={selectedTeam.team_name}
-                            className="team-logo-lg"
-                            width={48}
-                            height={48}
-                            onError={(e) => { e.currentTarget.style.visibility = 'hidden'; }}
-                          />
-                          <div className={styles.matchupTeamInfo}>
-                            <div className={styles.matchupTeamName}>{selectedTeam?.team_name}</div>
-                            <div className={styles.matchupTeamMeta}>{selectedTeam?.rank}위 · {selectedTeam?.points}점</div>
-                          </div>
-                        </div>
-                        <div className={styles.matchupVs}>VS</div>
-                        <div className={styles.matchupTeamRight}>
-                          {opponent ? (
-                            <>
-                              <div className={styles.matchupTeamInfo}>
-                                <div className={styles.matchupTeamName}>{opponent.team_name}</div>
-                                <div className={styles.matchupTeamMeta}>{opponent.rank}위 · {opponent.points}점</div>
-                              </div>
-                              <Image
-                                src={getTeamLogo(opponent.team_name)}
-                                alt={opponent.team_name}
-                                className="team-logo-lg"
-                                width={48}
-                                height={48}
-                                onError={(e) => { e.currentTarget.style.visibility = 'hidden'; }}
-                              />
-                            </>
-                          ) : (
-                            <div className={styles.matchupEmpty}>상대팀 선택</div>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className={styles.probCard}>
-                      <div className={styles.probTitle}>기본 승부 예측</div>
-                      {simPending ? renderProbSkeleton() : renderProbBars(simResult?.base_prediction)}
-                    </div>
-
-                    <div className={styles.probCard}>
-                      <div className={styles.probTitle}>전술 적용 후</div>
-                      {simPending ? renderProbSkeleton() : renderProbBars(simResult?.optimal_prediction)}
-                    </div>
-                  </div>
-
-                  {simPending ? (
-                    <div className={styles.improvementPending}>
-                      승률 개선 계산 중...
-                    </div>
-                  ) : simResult ? (
-                    <div className={styles.improvement}>
-                      승률 개선 {simResult.win_improvement >= 0 ? '+' : ''}{toPct(simResult.win_improvement).toFixed(1)}%p
-                      {simUpdating && <span className={styles.updateTag}>업데이트 중</span>}
-                    </div>
-                  ) : null}
-
-                  <div className={`${styles.preMatchDetailGrid} ${simStale ? styles.simDim : ''} ${simPulse ? styles.simPulse : ''}`}>
-                    <div className={styles.detailCard}>
-                      <div className={styles.detailHeader}>
-                        <div className={styles.detailTitle}>핵심 전술 제안</div>
-                        {simUpdating && <span className={styles.detailUpdate}>업데이트 중</span>}
-                      </div>
-                      {simPending ? (
-                        <div className={styles.detailHint}>시뮬레이션 결과를 기다리는 중...</div>
-                      ) : simResult?.tactical_suggestions?.length ? (
-                        <div className={styles.tacticList}>
-                          {simResult.tactical_suggestions.slice(0, 3).map((s) => {
-                            const relatedScenario = pickScenarioForTactic(s.tactic);
-                            return (
-                              <div key={`${s.priority}-${s.tactic}`} className={styles.tacticItem}>
-                                <div className={styles.tacticRank}>
-                                  {s.priority}
-                                </div>
-                                <div className={styles.tacticContent}>
-                                  <div className={styles.tacticTitleRow}>
-                                    <div className={styles.tacticTitle}>{s.tactic}</div>
-                                    <div className={styles.tacticDeltaBadge}>{s.win_prob_change}</div>
-                                  </div>
-                                  <div className={styles.tacticMeta}>
-                                    <span className={styles.tacticMetaLabel}>근거</span>
-                                    <span className={styles.tacticMetaText}>{s.reason}</span>
-                                  </div>
-                                  <div className={styles.tacticMeta}>
-                                    <span className={styles.tacticMetaLabel}>기대효과</span>
-                                    <span className={styles.tacticMetaText}>{s.expected_effect}</span>
-                                  </div>
-                                  {relatedScenario && (
-                                    <div className={styles.tacticScenario}>
-                                      <div className={styles.tacticScenarioTitle}>관련 시나리오</div>
-                                      <div className={styles.tacticScenarioDesc}>{relatedScenario.description}</div>
-                                      <div className={styles.tacticScenarioMetrics}>
-                                        <span>승</span> {fmtPct(relatedScenario.before.win)} → {fmtPct(relatedScenario.after.win)}
-                                        <span className={styles.tacticScenarioDelta}>
-                                          {relatedScenario.win_change >= 0 ? '+' : ''}
-                                          {toPct(relatedScenario.win_change).toFixed(1)}%p
-                                        </span>
-                                      </div>
-                                      <div className={styles.tacticScenarioNote}>{relatedScenario.recommendation}</div>
-                                    </div>
-                                  )}
-                                </div>
-                              </div>
-                            );
-                          })}
-                        </div>
-                      ) : (
-                        <div className={styles.detailHint}>전술 제안을 준비 중입니다.</div>
-                      )}
-                    </div>
-
-                    <div className={styles.detailCard}>
-                      <div className={styles.detailHeader}>
-                        <div className={styles.detailTitle}>전술 시나리오</div>
-                        {simUpdating && <span className={styles.detailUpdate}>업데이트 중</span>}
-                      </div>
-                      {simPending ? (
-                        <div className={styles.detailHint}>시나리오 계산 중...</div>
-                      ) : scenarios.length ? (
-                        <div className={styles.scenarioList}>
-                          {scenarios.slice(0, 3).map((sc) => (
-                            <div key={sc.scenario} className={styles.scenarioItem}>
-                              <div className={styles.scenarioTitleRow}>
-                                <div className={styles.scenarioTitle}>{sc.scenario}</div>
-                                <div className={styles.scenarioDeltaBadge}>
-                                  {sc.win_change >= 0 ? '+' : ''}{toPct(sc.win_change).toFixed(1)}%p
-                                </div>
-                              </div>
-                              <div className={styles.scenarioDesc}>{sc.description}</div>
-                              <div className={styles.scenarioMetrics}>
-                                <div><span>승</span> {fmtPct(sc.before.win)} → {fmtPct(sc.after.win)}</div>
-                                <div><span>무</span> {fmtPct(sc.before.draw)} → {fmtPct(sc.after.draw)}</div>
-                                <div><span>패</span> {fmtPct(sc.before.lose)} → {fmtPct(sc.after.lose)}</div>
-                              </div>
-                              <div className={styles.scenarioRecommendation}>{sc.recommendation}</div>
-                            </div>
-                          ))}
-                        </div>
-                      ) : (
-                        <div className={styles.detailHint}>시나리오 데이터가 없습니다.</div>
-                      )}
-                    </div>
-                  </div>
-                </div>
-
-                <div className={styles.matchSection}>
-                  <div className={styles.matchAnalysisHeader}>
-                    <div className={styles.matchAnalysisTitle}>🔍 경기 분석 - 놓친 찬스</div>
-                    <p className={styles.matchAnalysisDesc}>
-                      분석할 경기를 선택하세요. 패배/무승부 경기에서 <strong className={styles.matchHighlight}>승리할 수 있었던 기회</strong>를 찾아냅니다.
-                    </p>
-                  </div>
-
-                  {/* 1. 매치 리스트 뷰 (선택된 매치가 없을 때) */}
-                  {!selectedMatch && (
-                    <div className="fade-in">
-                      {recentMatches.length === 0 ? (
-                        <div className={`card ${styles.matchListEmpty}`}>
-                          최근 경기 데이터를 불러오는 중입니다.
-                        </div>
-                      ) : (
-                        <div className={styles.matchList}>
-                          {recentMatches
-                            .filter((match) => {
-                              if (!selectedTeam) return true;
-                              const teamId = selectedTeam.team_id;
-                              const isHomeTeam = match.home_team_id === teamId;
-                              const isAwayTeam = match.away_team_id === teamId;
-                              if (match.result === 'draw') return true;
-                              if (isHomeTeam && match.result === 'home_win') return false;
-                              if (isAwayTeam && match.result === 'away_win') return false;
-                              return true;
-                            })
-                            .map((match) => {
-                              const isDraw = match.result === 'draw';
-                              return (
-                                <button
-                                  key={match.game_id}
-                                  onClick={() => loadChanceAnalysis(match.game_id)}
-                                  className={styles.matchButton}
-                                  style={{ borderLeft: `6px solid ${isDraw ? '#f59e0b' : '#ef4444'}` }}
-                                >
-                                  <div>
-                                    <div className={styles.matchDate}>{match.date}</div>
-                                    <div className={styles.matchTeams}>
-                                      {match.home_team} <span className={styles.matchVs}>vs</span> {match.away_team}
-                                    </div>
-                                    <div className={styles.matchHint}>
-                                      {isDraw ? '무승부 경기 · 놓친 찬스 확인' : '패배 경기 · 승리 기회 재구성'}
-                                    </div>
-                                  </div>
-                                  <div className={styles.matchRight}>
-                                    <div className={styles.matchScore}>{match.score}</div>
-                                    <div className={styles.matchResult} style={{ color: isDraw ? '#d97706' : '#dc2626' }}>
-                                      {match.result_text}
-                                    </div>
-                                    <div className={styles.matchCta}>분석 보기</div>
-                                  </div>
-                                </button>
-                              );
-                            })}
-                        </div>
-                      )}
                     </div>
                   )}
 
-                  {/* 2. 상세 분석 뷰 (매치가 선택되었을 때) */}
-                  {selectedMatch && (
-                    <div className="fade-in">
-                      <button
-                        onClick={() => {
-                          setSelectedMatch(null);
-                          setChanceAnalysis(null);
-                        }}
-                        className={styles.analysisBack}
-                      >
-                        <span>←</span> 뒤로가기
-                      </button>
-
-                      {chanceLoading ? (
-                        <div className={`${styles.analysisLoading} animate-fade-in`}>분석 중입니다...</div>
-                      ) : chanceAnalysis ? (
-                        <div className="analysis-result animate-fade-in">
-                          <div className={`card ${styles.analysisCard}`}>
-                            <h3 className={styles.analysisCardTitle}>
-                              <span className={styles.analysisCardIcon}>💡</span>
-                              AI 분석 리포트
-                            </h3>
-                            <div className={styles.analysisCardText}>
-                              {chanceAnalysis.summary}
-                            </div>
-                          </div>
-
-                          <div className={`card ${styles.analysisGrid}`}>
-                            <h4 className={styles.analysisGridTitle}>결정적 장면 재구성</h4>
-                            <div
-                              className={styles.analysisGridList}
+                  {/* 팀 AI 분석 */}
+                  <div className={styles.analysisSection}>
+                    <div className={`card ${styles.teamAnalysisCard}`}>
+                      {!teamAnalysis ? (
+                        <div className={styles.panelPlaceholder}>
+                          AI 팀 분석 불러오는 중...
+                        </div>
+                      ) : (
+                        <>
+                          <div className={`card-title ${styles.teamAnalysisTitle}`}>
+                            AI 팀 분석
+                            <span
+                              className={styles.teamAnalysisBadge}
                               style={{
-                                gridTemplateColumns: chanceAnalysis.chances.length > 1 ? '1fr 1fr' : '1fr',
+                                background: teamAnalysis.overall_score >= 70 ? '#16a34a' : teamAnalysis.overall_score >= 50 ? '#f59e0b' : '#dc2626',
                               }}
                             >
-                              {chanceAnalysis.chances.map((chance, i) => (
-                                <div key={i} className="card">
-                                  <KeyMomentPitch
-                                    moments={chance.key_moments}
-                                    teamName={chance.team_name}
-                                  />
+                              {teamAnalysis.overall_score}점
+                            </span>
+                          </div>
+
+                          <p className={styles.teamAnalysisSummary}>
+                            {teamAnalysis.summary}
+                          </p>
+
+                          <div className={styles.analysisSplitGrid}>
+                            {/* 강점 */}
+                            <div className={styles.strengthCard}>
+                              <h4 className={styles.strengthTitle}>💪 강점</h4>
+                              {teamAnalysis.strengths.length > 0 ? teamAnalysis.strengths.map((s, i) => (
+                                <div key={i} className={styles.analysisItem}>
+                                  <div className={styles.analysisItemHead}>
+                                    <span className={styles.strengthItemTitle}>{s.title}</span>
+                                    <span className={styles.strengthScore}>{s.score}</span>
+                                  </div>
+                                  <p className={styles.strengthDesc}>{s.description}</p>
+                                </div>
+                              )) : <p className={styles.analysisEmpty}>분석 중...</p>}
+                            </div>
+
+                            {/* 약점 */}
+                            <div className={styles.weaknessCard}>
+                              <h4 className={styles.weaknessTitle}>⚠️ 개선 필요</h4>
+                              {teamAnalysis.weaknesses.length > 0 ? teamAnalysis.weaknesses.map((w, i) => (
+                                <div key={i} className={styles.analysisItem}>
+                                  <div className={styles.analysisItemHead}>
+                                    <span className={styles.weaknessItemTitle}>{w.title}</span>
+                                    <span className={styles.weaknessScore}>{w.score}</span>
+                                  </div>
+                                  <p className={styles.weaknessDesc}>{w.description}</p>
+                                </div>
+                              )) : <p className={styles.analysisEmpty}>약점 없음 👍</p>}
+                            </div>
+                          </div>
+
+                          {/* 인사이트 */}
+                          {teamAnalysis.insights.length > 0 && (
+                            <div className={styles.insightsBox}>
+                              {teamAnalysis.insights.map((insight, i) => (
+                                <div key={i} className={styles.insightItem}>
+                                  {insight}
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* VAEP 선수 공헌도 랭킹 */}
+                  <div className={styles.vaepSection}>
+                    <div className={`card ${styles.vaepCard}`}>
+                      {!vaepData ? (
+                        <div className={styles.panelPlaceholder}>
+                          VAEP 분석 불러오는 중...
+                        </div>
+                      ) : (
+                        <>
+                          <div className={`card-title ${styles.vaepTitle}`}>
+                            선수 공헌도 (VAEP)
+                            <span className={styles.vaepBadge}>
+                              {vaepData.methodology}
+                            </span>
+                          </div>
+
+                          <p className={styles.vaepSummary}>
+                            총 팀 VAEP: <strong>{vaepData.team_total_vaep.toFixed(1)}</strong>점
+                          </p>
+
+                          <div className={styles.vaepGrid}>
+                            {/* 전체 상위 5 */}
+                            <div className={styles.vaepListCard}>
+                              <h4 className={styles.vaepListTitlePrimary}>🏆 전체 TOP 5</h4>
+                              {vaepData.top_players.slice(0, 5).map((p, i) => (
+                                <div key={p.player_id} className={styles.vaepItemPrimary}>
+                                  <span className={styles.vaepPlayerName}>
+                                    <span style={{
+                                      display: 'inline-block',
+                                      width: 18,
+                                      height: 18,
+                                      borderRadius: '50%',
+                                      background: i === 0 ? '#f59e0b' : i === 1 ? '#94a3b8' : i === 2 ? '#b45309' : '#e2e8f0',
+                                      color: i < 3 ? 'white' : '#64748b',
+                                      textAlign: 'center',
+                                      lineHeight: '18px',
+                                      fontSize: 10,
+                                      marginRight: 6,
+                                      fontWeight: 700
+                                    }}>
+                                      {i + 1}
+                                    </span>
+                                    {p.player_name}
+                                  </span>
+                                  <span className={styles.vaepScorePrimary}>
+                                    {p.total_vaep.toFixed(1)}
+                                  </span>
+                                </div>
+                              ))}
+                            </div>
+
+                            {/* 공격 상위 5 */}
+                            <div className={styles.vaepListCard}>
+                              <h4 className={styles.vaepListTitleOff}>⚽ 공격 TOP 5</h4>
+                              {vaepData.top_offensive.slice(0, 5).map((p) => (
+                                <div key={p.player_id} className={styles.vaepItemOff}>
+                                  <span className={styles.vaepPlayerName}>{p.player_name}</span>
+                                  <span className={styles.vaepScoreOff}>
+                                    {p.offensive_vaep.toFixed(1)}
+                                  </span>
+                                </div>
+                              ))}
+                            </div>
+
+                            {/* 수비 상위 5 */}
+                            <div className={styles.vaepListCard}>
+                              <h4 className={styles.vaepListTitleDef}>🛡️ 수비 TOP 5</h4>
+                              {vaepData.top_defensive.slice(0, 5).map((p) => (
+                                <div key={p.player_id} className={styles.vaepItemDef}>
+                                  <span className={styles.vaepPlayerName}>{p.player_name}</span>
+                                  <span className={styles.vaepScoreDef}>
+                                    {p.defensive_vaep.toFixed(1)}
+                                  </span>
                                 </div>
                               ))}
                             </div>
                           </div>
-                        </div>
-                      ) : null}
+                        </>
+                      )}
                     </div>
-                  )}
+                  </div>
                 </div>
-              </div>
-            )}
+              )}
 
-            {activeTab === 'video' && (
-              <div className={styles.videoSection}>
-                <VideoAnalysis />
-              </div>
-            )}
+              {activeTab === 'patterns' && (
+                <div>
+                  {/* 피치 시각화 섹션 */}
+                  <div className={`card ${styles.patternsCard}`}>
+                    <div className={`card-title ${styles.patternsTitle}`}>
+                      ⚽ 경기 상황 리플레이
+                    </div>
+
+                    {/* Phase 선택 - 버튼 스타일 */}
+                    <div className={styles.phaseSection}>
+                      <p className={styles.phaseLabel}>
+                        공격 Phase 선택:
+                      </p>
+                      <div className={styles.phaseList}>
+                        {phases.slice(0, 10).map((ph, idx) => (
+                          <button
+                            key={ph.phase_id}
+                            onClick={() => loadPhaseReplay(ph.phase_id)}
+                            className={`${styles.phaseButton} ${selectedPhase === ph.phase_id ? styles.phaseButtonActive : styles.phaseButtonInactive}`}
+                          >
+                            <div className={styles.phaseTitle}>
+                              Phase {idx + 1} ⚽
+                            </div>
+                            <div className={styles.phaseMeta}>
+                              패스 {ph.passes}회 · {Math.round(ph.duration)}초
+                            </div>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* 피치 리플레이 + 패턴 가로 배치 */}
+                    <div className={styles.patternLayout}>
+                      {/* 피치 리플레이 */}
+                      <div className={`${styles.patternReplay} ${replayLoading ? styles.replayEase : ''}`}>
+                        {replayLoading ? (
+                          <div className={styles.patternLoading}>⏳ 로딩 중...</div>
+                        ) : replayEvents.length > 0 ? (
+                          <PitchReplay
+                            events={replayEvents}
+                            isPlaying={isPlaying}
+                            onPlayPause={() => setIsPlaying(!isPlaying)}
+                            playbackSpeed={playbackSpeed}
+                            onSpeedChange={setPlaybackSpeed}
+                          />
+                        ) : (
+                          <div className={styles.patternEmpty}>
+                            <div className={styles.patternEmptyIcon}>🎬</div>
+                            <p className={styles.patternEmptyText}>
+                              위에서 Phase를 선택하세요
+                            </p>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* 패턴 통계 - 컴팩트 세로 배치 */}
+                      <div className={styles.patternSide}>
+                        <div className={styles.patternSideTitle}>
+                          📊 패턴 TOP 5
+                        </div>
+                        <div className={styles.patternSideList}>
+                          {patterns.slice(0, 5).map((pattern, i) => {
+                            const rate = Math.max(0, Math.min(100, Math.round(pattern.shot_conversion_rate * 100)));
+                            return (
+                              <div key={pattern.cluster_id} className={styles.patternSideItem}>
+                                <span className={styles.patternSideRank}>#{i + 1}</span>
+                                <span className={styles.patternSideRate}>{rate}%</span>
+                                <span className={styles.patternSideFreq}>{pattern.frequency}회</span>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {activeTab === 'setpieces' && (
+                setpieces.length > 0 ? (
+                  <div className={styles.setpieceCard}>
+                    {/* 상단 네비게이션 */}
+                    <div className={styles.setpieceNav}>
+                      <button
+                        onClick={() => setSetpieceIndex(Math.max(0, setpieceIndex - 1))}
+                        disabled={setpieceIndex === 0}
+                        className={`${styles.setpieceNavButton} ${setpieceIndex === 0 ? styles.setpieceNavButtonDisabled : styles.setpieceNavButtonActive}`}
+                      >
+                        ←
+                      </button>
+
+                      {/* 현재 세트피스 정보 */}
+                      <div className={styles.setpieceInfo}>
+                        <span
+                          className={`${styles.setpieceTag} ${setpieces[setpieceIndex]?.type.includes('Corner') ? styles.setpieceTagCorner : styles.setpieceTagFree}`}
+                        >
+                          {setpieces[setpieceIndex]?.type.includes('Corner') ? '코너킥' : '프리킥'}
+                        </span>
+                        <span className={styles.setpieceRate}>
+                          슈팅 전환율 {(setpieces[setpieceIndex]?.shot_rate * 100).toFixed(0)}%
+                        </span>
+                        <span className={styles.setpieceIndex}>
+                          {setpieceIndex + 1} / {setpieces.length}
+                        </span>
+                      </div>
+
+                      <button
+                        onClick={() => setSetpieceIndex(Math.min(setpieces.length - 1, setpieceIndex + 1))}
+                        disabled={setpieceIndex === setpieces.length - 1}
+                        className={`${styles.setpieceNavButton} ${setpieceIndex === setpieces.length - 1 ? styles.setpieceNavButtonDisabled : styles.setpieceNavButtonActive}`}
+                      >
+                        →
+                      </button>
+                    </div>
+
+                    {/* 피치 시각화 */}
+                    <div className={styles.setpiecePitch}>
+                      <SetpiecePitch routine={setpieces[setpieceIndex]} />
+                    </div>
+
+                    {/* 하단 통계 */}
+                    <div className={styles.setpieceStats}>
+                      <div className={styles.setpieceStat}>
+                        <div className={styles.setpieceStatValue}>{setpieces[setpieceIndex]?.frequency}</div>
+                        <div className={styles.setpieceStatLabel}>발생 횟수</div>
+                      </div>
+                      <div className={styles.setpieceStat}>
+                        <div className={styles.setpieceStatValue}>
+                          {setpieces[setpieceIndex]?.swing_type === 'inswing' ? '인스윙' : '아웃스윙'}
+                        </div>
+                        <div className={styles.setpieceStatLabel}>킥 타입</div>
+                      </div>
+                      <div className={styles.setpieceStat}>
+                        <div className={styles.setpieceStatValue}>
+                          {(() => {
+                            const zone = setpieces[setpieceIndex]?.primary_zone || '';
+                            const zoneMap: Record<string, string> = {
+                              'far_post': '먼 포스트',
+                              'near_post': '가까운 포스트',
+                              'center': '중앙',
+                              'central': '중앙',
+                              'penalty_spot': '페널티 스팟',
+                              'six_yard': '6야드 박스',
+                              'edge_box': '박스 경계',
+                              'edge_of_box': '박스 경계',
+                              'unknown': '미정',
+                              'Unknown': '미정',
+                              '': '미정'
+                            };
+                            return zoneMap[zone] || zone;
+                          })()}
+                        </div>
+                        <div className={styles.setpieceStatLabel}>타겟존</div>
+                      </div>
+                    </div>
+
+                    {/* 수비 제안 */}
+                    <div className={styles.setpieceSuggest}>
+                      💡 {setpieces[setpieceIndex]?.defense_suggestion}
+                    </div>
+                  </div>
+                ) : (
+                  <div className={`card ${styles.setpieceEmpty}`}>
+                    {analysisLoading ? '세트피스 데이터를 불러오는 중...' : '세트피스 데이터가 없습니다.'}
+                  </div>
+                )
+              )}
+
+              {activeTab === 'network' && (
+                <div className={styles.networkScroll}>
+                  {/* 패스 네트워크 시각화 */}
+                  <div className={styles.networkChart}>
+                    {networkGraph ? (
+                      <PassNetwork
+                        nodes={networkGraph.nodes}
+                        edges={networkGraph.edges}
+                      />
+                    ) : (
+                      <div className={`card ${styles.networkPlaceholder}`}>
+                        네트워크 로딩 중...
+                      </div>
+                    )}
+                  </div>
+
+                  {/* 허브 선수 카드 */}
+                  <div className="pattern-grid">
+                    {hubs.map((hub) => (
+                      <div key={hub.player_id} className="card">
+                        <div className="hub-card">
+                          <div className="hub-avatar">{hub.position}</div>
+                          <div className={`hub-info ${styles.hubInfo}`}>
+                            <h4>{hub.player_name}</h4>
+                            <p>{hub.main_position} • 허브 점수 {(hub.hub_score * 100).toFixed(0)}</p>
+                          </div>
+                        </div>
+                        <div className={styles.hubStatsGrid}>
+                          <div className={`${styles.hubStat} ${styles.hubStatReceive}`}>
+                            <div className={styles.hubStatValueReceive}>{hub.passes_received}</div>
+                            <div className={styles.hubStatLabel}>패스 수신</div>
+                          </div>
+                          <div className={`${styles.hubStat} ${styles.hubStatPass}`}>
+                            <div className={styles.hubStatValuePass}>{hub.passes_made}</div>
+                            <div className={styles.hubStatLabel}>패스 시도</div>
+                          </div>
+                        </div>
+                        <p className={styles.hubImpact}>
+                          {hub.disruption_impact?.description || '압박 타겟'}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {activeTab === 'simulation' && (
+                <div className={styles.preMatchSection}>
+                  <div
+                    className={`card ${styles.preMatchCard} ${simPulse ? styles.simPulse : ''}`}
+                  >
+                    <div className={styles.preMatchHeader}>
+                      <div>
+                        <div className={styles.preMatchTitle}>프리매치 예측</div>
+                        <div className={styles.preMatchSubtitle}>최근 {ANALYSIS_GAMES}경기 기반 시뮬레이션</div>
+                      </div>
+                      <div className={styles.preMatchActions}>
+                        {simUpdating && <span className={styles.updateBadge}>업데이트 중</span>}
+                        <button
+                          onClick={() => {
+                            if (selectedTeam && opponent) {
+                              simKeyRef.current = null;
+                              runSimulation(selectedTeam, opponent);
+                            }
+                          }}
+                          disabled={!canRunSim || simLoading}
+                          className={`${styles.preMatchButton} ${canRunSim && !simLoading ? styles.preMatchButtonActive : styles.preMatchButtonDisabled}`}
+                        >
+                          {simLoading ? '계산 중...' : '재계산'}
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className={styles.opponentLabel}>상대팀 선택</div>
+                    <div className={styles.opponentList}>
+                      {standings.map((team) => {
+                        const isSelf = selectedTeam?.team_id === team.team_id;
+                        const isActive = opponent?.team_id === team.team_id;
+                        return (
+                          <button
+                            key={team.team_id}
+                            onClick={() => {
+                              if (!isSelf) handleOpponentSelect(team);
+                            }}
+                            disabled={isSelf}
+                            className={`${styles.opponentButton} ${isActive ? styles.opponentButtonActive : ''} ${isSelf ? styles.opponentButtonDisabled : ''}`}
+                          >
+                            <Image
+                              src={getTeamLogo(team.team_name)}
+                              alt={team.team_name}
+                              className={styles.opponentLogo}
+                              width={20}
+                              height={20}
+                              onError={(e) => { e.currentTarget.style.visibility = 'hidden'; }}
+                            />
+                            <div className={styles.opponentInfo}>
+                              <div className={styles.opponentName}>{team.team_name}</div>
+                              <div className={styles.opponentRank}>{team.rank}위 · {team.points}점</div>
+                            </div>
+                          </button>
+                        );
+                      })}
+                    </div>
+                    <div className={styles.opponentHint}>상대팀을 클릭하면 자동으로 예측이 갱신됩니다.</div>
+
+                    <div className={`${styles.preMatchGrid} ${simStale ? styles.simDim : ''} ${simPulse ? styles.simPulse : ''}`}>
+                      <div className={styles.matchupCard}>
+                        <div className={styles.matchupLabel}>매치업</div>
+                        <div className={styles.matchupRow}>
+                          <div className={styles.matchupTeam}>
+                            <Image
+                              src={getTeamLogo(selectedTeam.team_name)}
+                              alt={selectedTeam.team_name}
+                              className="team-logo-lg"
+                              width={48}
+                              height={48}
+                              onError={(e) => { e.currentTarget.style.visibility = 'hidden'; }}
+                            />
+                            <div className={styles.matchupTeamInfo}>
+                              <div className={styles.matchupTeamName}>{selectedTeam?.team_name}</div>
+                              <div className={styles.matchupTeamMeta}>{selectedTeam?.rank}위 · {selectedTeam?.points}점</div>
+                            </div>
+                          </div>
+                          <div className={styles.matchupVs}>VS</div>
+                          <div className={styles.matchupTeamRight}>
+                            {opponent ? (
+                              <>
+                                <div className={styles.matchupTeamInfo}>
+                                  <div className={styles.matchupTeamName}>{opponent.team_name}</div>
+                                  <div className={styles.matchupTeamMeta}>{opponent.rank}위 · {opponent.points}점</div>
+                                </div>
+                                <Image
+                                  src={getTeamLogo(opponent.team_name)}
+                                  alt={opponent.team_name}
+                                  className="team-logo-lg"
+                                  width={48}
+                                  height={48}
+                                  onError={(e) => { e.currentTarget.style.visibility = 'hidden'; }}
+                                />
+                              </>
+                            ) : (
+                              <div className={styles.matchupEmpty}>상대팀 선택</div>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className={styles.probCard}>
+                        <div className={styles.probTitle}>기본 승부 예측</div>
+                        {simPending ? renderProbSkeleton() : renderProbBars(simResult?.base_prediction)}
+                      </div>
+
+                      <div className={styles.probCard}>
+                        <div className={styles.probTitle}>전술 적용 후</div>
+                        {simPending ? renderProbSkeleton() : renderProbBars(simResult?.optimal_prediction)}
+                      </div>
+                    </div>
+
+                    {simPending ? (
+                      <div className={styles.improvementPending}>
+                        승률 개선 계산 중...
+                      </div>
+                    ) : simResult ? (
+                      <div className={styles.improvement}>
+                        승률 개선 {simResult.win_improvement >= 0 ? '+' : ''}{toPct(simResult.win_improvement).toFixed(1)}%p
+                        {simUpdating && <span className={styles.updateTag}>업데이트 중</span>}
+                      </div>
+                    ) : null}
+
+                    <div className={`${styles.preMatchDetailGrid} ${simStale ? styles.simDim : ''} ${simPulse ? styles.simPulse : ''}`}>
+                      <div className={styles.detailCard}>
+                        <div className={styles.detailHeader}>
+                          <div className={styles.detailTitle}>핵심 전술 제안</div>
+                          {simUpdating && <span className={styles.detailUpdate}>업데이트 중</span>}
+                        </div>
+                        {simPending ? (
+                          <div className={styles.detailHint}>시뮬레이션 결과를 기다리는 중...</div>
+                        ) : simResult?.tactical_suggestions?.length ? (
+                          <div className={styles.tacticList}>
+                            {simResult.tactical_suggestions.slice(0, 3).map((s) => {
+                              const relatedScenario = pickScenarioForTactic(s.tactic);
+                              return (
+                                <div key={`${s.priority}-${s.tactic}`} className={styles.tacticItem}>
+                                  <div className={styles.tacticRank}>
+                                    {s.priority}
+                                  </div>
+                                  <div className={styles.tacticContent}>
+                                    <div className={styles.tacticTitleRow}>
+                                      <div className={styles.tacticTitle}>{s.tactic}</div>
+                                      <div className={styles.tacticDeltaBadge}>{s.win_prob_change}</div>
+                                    </div>
+                                    <div className={styles.tacticMeta}>
+                                      <span className={styles.tacticMetaLabel}>근거</span>
+                                      <span className={styles.tacticMetaText}>{s.reason}</span>
+                                    </div>
+                                    <div className={styles.tacticMeta}>
+                                      <span className={styles.tacticMetaLabel}>기대효과</span>
+                                      <span className={styles.tacticMetaText}>{s.expected_effect}</span>
+                                    </div>
+                                    {relatedScenario && (
+                                      <div className={styles.tacticScenario}>
+                                        <div className={styles.tacticScenarioTitle}>관련 시나리오</div>
+                                        <div className={styles.tacticScenarioDesc}>{relatedScenario.description}</div>
+                                        <div className={styles.tacticScenarioMetrics}>
+                                          <span>승</span> {fmtPct(relatedScenario.before.win)} → {fmtPct(relatedScenario.after.win)}
+                                          <span className={styles.tacticScenarioDelta}>
+                                            {relatedScenario.win_change >= 0 ? '+' : ''}
+                                            {toPct(relatedScenario.win_change).toFixed(1)}%p
+                                          </span>
+                                        </div>
+                                        <div className={styles.tacticScenarioNote}>{relatedScenario.recommendation}</div>
+                                      </div>
+                                    )}
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        ) : (
+                          <div className={styles.detailHint}>전술 제안을 준비 중입니다.</div>
+                        )}
+                      </div>
+
+                      <div className={styles.detailCard}>
+                        <div className={styles.detailHeader}>
+                          <div className={styles.detailTitle}>전술 시나리오</div>
+                          {simUpdating && <span className={styles.detailUpdate}>업데이트 중</span>}
+                        </div>
+                        {simPending ? (
+                          <div className={styles.detailHint}>시나리오 계산 중...</div>
+                        ) : scenarios.length ? (
+                          <div className={styles.scenarioList}>
+                            {scenarios.slice(0, 3).map((sc) => (
+                              <div key={sc.scenario} className={styles.scenarioItem}>
+                                <div className={styles.scenarioTitleRow}>
+                                  <div className={styles.scenarioTitle}>{sc.scenario}</div>
+                                  <div className={styles.scenarioDeltaBadge}>
+                                    {sc.win_change >= 0 ? '+' : ''}{toPct(sc.win_change).toFixed(1)}%p
+                                  </div>
+                                </div>
+                                <div className={styles.scenarioDesc}>{sc.description}</div>
+                                <div className={styles.scenarioMetrics}>
+                                  <div><span>승</span> {fmtPct(sc.before.win)} → {fmtPct(sc.after.win)}</div>
+                                  <div><span>무</span> {fmtPct(sc.before.draw)} → {fmtPct(sc.after.draw)}</div>
+                                  <div><span>패</span> {fmtPct(sc.before.lose)} → {fmtPct(sc.after.lose)}</div>
+                                </div>
+                                <div className={styles.scenarioRecommendation}>{sc.recommendation}</div>
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <div className={styles.detailHint}>시나리오 데이터가 없습니다.</div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className={styles.matchSection}>
+                    <div className={styles.matchAnalysisHeader}>
+                      <div className={styles.matchAnalysisTitle}>🔍 경기 분석 - 놓친 찬스</div>
+                      <p className={styles.matchAnalysisDesc}>
+                        분석할 경기를 선택하세요. 패배/무승부 경기에서 <strong className={styles.matchHighlight}>승리할 수 있었던 기회</strong>를 찾아냅니다.
+                      </p>
+                    </div>
+
+                    {/* 1. 매치 리스트 뷰 (선택된 매치가 없을 때) */}
+                    {!selectedMatch && (
+                      <div className="fade-in">
+                        {recentMatches.length === 0 ? (
+                          <div className={`card ${styles.matchListEmpty}`}>
+                            최근 경기 데이터를 불러오는 중입니다.
+                          </div>
+                        ) : (
+                          <div className={styles.matchList}>
+                            {recentMatches
+                              .filter((match) => {
+                                if (!selectedTeam) return true;
+                                const teamId = selectedTeam.team_id;
+                                const isHomeTeam = match.home_team_id === teamId;
+                                const isAwayTeam = match.away_team_id === teamId;
+                                if (match.result === 'draw') return true;
+                                if (isHomeTeam && match.result === 'home_win') return false;
+                                if (isAwayTeam && match.result === 'away_win') return false;
+                                return true;
+                              })
+                              .map((match) => {
+                                const isDraw = match.result === 'draw';
+                                return (
+                                  <button
+                                    key={match.game_id}
+                                    onClick={() => loadChanceAnalysis(match.game_id)}
+                                    className={styles.matchButton}
+                                    style={{ borderLeft: `6px solid ${isDraw ? '#f59e0b' : '#ef4444'}` }}
+                                  >
+                                    <div>
+                                      <div className={styles.matchDate}>{match.date}</div>
+                                      <div className={styles.matchTeams}>
+                                        {match.home_team} <span className={styles.matchVs}>vs</span> {match.away_team}
+                                      </div>
+                                      <div className={styles.matchHint}>
+                                        {isDraw ? '무승부 경기 · 놓친 찬스 확인' : '패배 경기 · 승리 기회 재구성'}
+                                      </div>
+                                    </div>
+                                    <div className={styles.matchRight}>
+                                      <div className={styles.matchScore}>{match.score}</div>
+                                      <div className={styles.matchResult} style={{ color: isDraw ? '#d97706' : '#dc2626' }}>
+                                        {match.result_text}
+                                      </div>
+                                      <div className={styles.matchCta}>분석 보기</div>
+                                    </div>
+                                  </button>
+                                );
+                              })}
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* 2. 상세 분석 뷰 (매치가 선택되었을 때) */}
+                    {selectedMatch && (
+                      <div className="fade-in">
+                        <button
+                          onClick={() => {
+                            setSelectedMatch(null);
+                            setChanceAnalysis(null);
+                          }}
+                          className={styles.analysisBack}
+                        >
+                          <span>←</span> 뒤로가기
+                        </button>
+
+                        {chanceLoading ? (
+                          <div className={`${styles.analysisLoading} animate-fade-in`}>분석 중입니다...</div>
+                        ) : chanceAnalysis ? (
+                          <div className="analysis-result animate-fade-in">
+                            <div className={`card ${styles.analysisCard}`}>
+                              <h3 className={styles.analysisCardTitle}>
+                                <span className={styles.analysisCardIcon}>💡</span>
+                                AI 분석 리포트
+                              </h3>
+                              <div className={styles.analysisCardText}>
+                                {chanceAnalysis.summary}
+                              </div>
+                            </div>
+
+                            <div className={`card ${styles.analysisGrid}`}>
+                              <h4 className={styles.analysisGridTitle}>결정적 장면 재구성</h4>
+                              <div
+                                className={styles.analysisGridList}
+                                style={{
+                                  gridTemplateColumns: chanceAnalysis.chances.length > 1 ? '1fr 1fr' : '1fr',
+                                }}
+                              >
+                                {chanceAnalysis.chances.map((chance, i) => (
+                                  <div key={i} className="card">
+                                    <KeyMomentPitch
+                                      moments={chance.key_moments}
+                                      teamName={chance.team_name}
+                                    />
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          </div>
+                        ) : null}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {activeTab === 'video' && (
+                <div className={styles.videoSection}>
+                  <VideoAnalysis />
+                </div>
+              )}
             </div>
           </>
         )}

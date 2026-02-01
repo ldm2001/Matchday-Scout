@@ -1,27 +1,23 @@
-// API 클라이언트
+// API 클라이언트 - 백엔드 API 호출 함수 모음
 
-// 브라우저 환경에서는 항상 상대 경로 사용 (Nginx가 /api로 프록시)
-// 서버 사이드 렌더링 시에만 환경 변수 또는 localhost 사용
+// 브라우저 환경에서는 상대 경로, SSR에서는 환경 변수 사용
 const getApiBase = (): string => {
-    // 브라우저 환경: 항상 상대 경로 사용
-    // Nginx가 /api 경로를 백엔드로 프록시하므로 상대 경로가 올바름
+    // 브라우저 환경: 상대 경로 사용 (Nginx 프록시)
     if (typeof window !== 'undefined') {
-        // 브라우저에서는 무조건 상대 경로 사용
-        // 환경 변수는 완전히 무시 (빌드 타임 환경 변수 문제 방지)
         return '';
     }
-
-    // 서버 사이드 렌더링(SSR) 시에만 환경 변수 또는 localhost 사용
-    // Next.js의 서버 컴포넌트나 getServerSideProps 등에서 사용될 때
+    // 서버 사이드 렌더링: 환경 변수 또는 localhost 사용
     return process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 };
 
+// 재시도 대상 HTTP 상태 코드
 const RETRY_STATUSES = new Set([500, 502, 503, 504]);
 const RETRY_LIMIT = 2;
 const RETRY_DELAY_MS = 400;
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
+// 서버 오류 시 자동 재시도 fetch
 async function fetchWithRetry(url: string, init?: RequestInit, retries: number = RETRY_LIMIT) {
     let attempt = 0;
     while (true) {
@@ -34,18 +30,18 @@ async function fetchWithRetry(url: string, init?: RequestInit, retries: number =
     }
 }
 
+// GET 요청 래퍼
 async function fetchAPI<T>(endpoint: string): Promise<T> {
-    // 매번 호출 시점에 API_BASE를 계산 (런타임에 결정)
     const API_BASE = getApiBase();
-    
-    // 디버깅: 프로덕션에서 문제 확인용 (나중에 제거 가능)
+
+    // 프로덕션 환경에서 잘못된 경로 감지
     if (typeof window !== 'undefined' && process.env.NODE_ENV === 'production') {
-      const fullUrl = `${API_BASE}${endpoint}`;
-      if (fullUrl.includes('localhost') || fullUrl.startsWith('http://') || fullUrl.startsWith('https://')) {
-        console.warn('[API] 잘못된 API 경로 감지:', fullUrl, '→ 상대 경로로 변경해야 함');
-      }
+        const fullUrl = `${API_BASE}${endpoint}`;
+        if (fullUrl.includes('localhost') || fullUrl.startsWith('http://') || fullUrl.startsWith('https://')) {
+            console.warn('[API] 잘못된 API 경로 감지:', fullUrl, '→ 상대 경로로 변경해야 함');
+        }
     }
-    
+
     const res = await fetchWithRetry(`${API_BASE}${endpoint}`);
     if (!res.ok) {
         throw new Error(`API Error: ${res.status}`);
@@ -53,6 +49,7 @@ async function fetchAPI<T>(endpoint: string): Promise<T> {
     return res.json();
 }
 
+// POST 요청 래퍼
 async function postAPI<T>(endpoint: string, payload: unknown): Promise<T> {
     const API_BASE = getApiBase();
     const res = await fetchWithRetry(`${API_BASE}${endpoint}`, {
@@ -66,11 +63,12 @@ async function postAPI<T>(endpoint: string, payload: unknown): Promise<T> {
     return res.json();
 }
 
-// Teams API
+// 팀 목록 조회
 export async function getTeams() {
     return fetchAPI<{ teams: import('@/types').Team[]; count: number }>('/api/teams/');
 }
 
+// 팀 순위표 조회
 export async function getTeamsOverview() {
     return fetchAPI<{
         standings: Array<{
@@ -91,6 +89,7 @@ export async function getTeamsOverview() {
     }>('/api/teams/overview');
 }
 
+// 팀 상세 정보 조회
 export async function getTeamInfo(teamId: number) {
     return fetchAPI<{
         team_id: number;
@@ -106,7 +105,7 @@ export async function getTeamInfo(teamId: number) {
     }>(`/api/teams/${teamId}`);
 }
 
-// Patterns API
+// 팀 공격 패턴 조회
 export async function getTeamPatterns(teamId: number, nGames: number = 5, nPatterns: number = 3) {
     return fetchAPI<{
         team_id: number;
@@ -116,6 +115,7 @@ export async function getTeamPatterns(teamId: number, nGames: number = 5, nPatte
     }>(`/api/patterns/${teamId}?n_games=${nGames}&n_patterns=${nPatterns}`);
 }
 
+// 팀 공격 페이즈 목록 조회
 export async function getTeamPhases(teamId: number, nGames: number = 5) {
     return fetchAPI<{
         team_id: number;
@@ -133,6 +133,7 @@ export async function getTeamPhases(teamId: number, nGames: number = 5) {
     }>(`/api/patterns/${teamId}/phases?n_games=${nGames}`);
 }
 
+// 팀 분석 결과 타입
 export interface TeamAnalysis {
     team_id: number;
     overall_score: number;
@@ -152,10 +153,12 @@ export interface TeamAnalysis {
     summary: string;
 }
 
+// AI 기반 팀 강약점 분석 조회
 export async function getTeamAnalysis(teamId: number, nGames: number = 100) {
     return fetchAPI<TeamAnalysis>(`/api/patterns/${teamId}/analysis?n_games=${nGames}`);
 }
 
+// VAEP 선수 가치 타입
 export interface VAEPPlayer {
     player_id: number;
     player_name: string;
@@ -168,6 +171,7 @@ export interface VAEPPlayer {
     passing_vaep: number;
 }
 
+// VAEP 팀 요약 타입
 export interface VAEPSummary {
     team_id: number;
     n_games_analyzed: number;
@@ -178,10 +182,12 @@ export interface VAEPSummary {
     methodology: string;
 }
 
+// 팀 VAEP 분석 조회
 export async function getTeamVAEP(teamId: number, nGames: number = 100, nTop: number = 10) {
     return fetchAPI<VAEPSummary>(`/api/patterns/${teamId}/vaep?n_games=${nGames}&n_top=${nTop}`);
 }
 
+// 공격 페이즈 리플레이 데이터 조회
 export async function getPhaseReplay(teamId: number, phaseId: number, nGames: number = 5) {
     return fetchAPI<{
         phase_id: number;
@@ -189,7 +195,7 @@ export async function getPhaseReplay(teamId: number, phaseId: number, nGames: nu
     }>(`/api/patterns/${teamId}/phases/${phaseId}/replay?n_games=${nGames}`);
 }
 
-// Set-pieces API
+// 팀 세트피스 루틴 조회
 export async function getTeamSetpieces(teamId: number, nGames: number = 5, nTop: number = 2) {
     return fetchAPI<{
         team_id: number;
@@ -199,7 +205,7 @@ export async function getTeamSetpieces(teamId: number, nGames: number = 5, nTop:
     }>(`/api/setpieces/${teamId}?n_games=${nGames}&n_top=${nTop}`);
 }
 
-// Network API
+// 팀 빌드업 허브 조회
 export async function getTeamNetwork(teamId: number, nGames: number = 5, nHubs: number = 2) {
     return fetchAPI<{
         team_id: number;
@@ -209,6 +215,7 @@ export async function getTeamNetwork(teamId: number, nGames: number = 5, nHubs: 
     }>(`/api/network/${teamId}?n_games=${nGames}&n_hubs=${nHubs}`);
 }
 
+// 패스 네트워크 그래프 조회
 export async function getNetworkGraph(teamId: number, nGames: number = 5) {
     return fetchAPI<{
         team_id: number;
@@ -217,7 +224,7 @@ export async function getNetworkGraph(teamId: number, nGames: number = 5) {
     }>(`/api/network/${teamId}/graph?n_games=${nGames}`);
 }
 
-// Simulation API
+// 압박 시뮬레이션 실행
 export async function simulatePressing(teamId: number, playerId: number, nGames: number = 5) {
     return fetchAPI<{
         team_id: number;
@@ -232,7 +239,7 @@ export async function simulatePressing(teamId: number, playerId: number, nGames:
     }>(`/api/simulation/${teamId}/pressing/${playerId}?n_games=${nGames}`);
 }
 
-// Video analysis API
+// 비디오 클립 정보 타입
 export interface VideoClip {
     url: string;
     video_id: string;
@@ -242,6 +249,7 @@ export interface VideoClip {
     height?: number | null;
 }
 
+// 비디오 키 모멘트 타입
 export interface VideoMoment {
     ts: number;
     label: string;
@@ -259,6 +267,7 @@ export interface VideoMoment {
     };
 }
 
+// 비디오 분석 리포트 타입
 export interface VideoReport {
     job_id: string;
     status: string;
@@ -285,6 +294,7 @@ export interface VideoReport {
     };
 }
 
+// 비디오 분석 작업 타입
 export interface VideoJob {
     job_id: string;
     status: string;
@@ -294,10 +304,12 @@ export interface VideoJob {
     error?: string | null;
 }
 
+// URL로 비디오 분석 작업 시작
 export async function startVideoJob(url: string) {
     return postAPI<VideoJob>('/api/video/jobs', { url });
 }
 
+// 파일 업로드로 비디오 분석 작업 시작
 export async function uploadVideoJob(file: File, url: string = '') {
     const API_BASE = getApiBase();
     const form = new FormData();
@@ -320,10 +332,12 @@ export async function uploadVideoJob(file: File, url: string = '') {
     return res.json();
 }
 
+// 비디오 분석 작업 상태 조회
 export async function getVideoJob(jobId: string) {
     return fetchAPI<VideoJob>(`/api/video/jobs/${jobId}`);
 }
 
+// 전체 전술 분석 조회
 export async function getFullTacticalAnalysis(teamId: number, nGames: number = 5) {
     return fetchAPI<{
         team_id: number;
@@ -337,6 +351,7 @@ export async function getFullTacticalAnalysis(teamId: number, nGames: number = 5
     }>(`/api/simulation/${teamId}/full-analysis?n_games=${nGames}`);
 }
 
+// 경기 전 시뮬레이션 실행
 export async function runPreMatchSimulation(ourTeamId: number, opponentId: number, nGames: number = 5) {
     return postAPI<{
         our_team_id: number;
@@ -366,7 +381,7 @@ export async function runPreMatchSimulation(ourTeamId: number, opponentId: numbe
     });
 }
 
-// Match Analysis API
+// 경기 결과 타입
 export interface MatchResult {
     game_id: number;
     date: string;
@@ -380,6 +395,7 @@ export interface MatchResult {
     venue: string;
 }
 
+// 키 모멘트 (놓친 찬스) 타입
 export interface KeyMoment {
     time: number;
     time_display?: string;
@@ -437,6 +453,7 @@ export interface KeyMoment {
     } | null;
 }
 
+// 찬스 분석 결과 타입
 export interface ChanceAnalysis {
     game_id: number;
     date: string;
@@ -452,11 +469,13 @@ export interface ChanceAnalysis {
     }>;
 }
 
+// 팀 경기 목록 조회
 export async function matchList(teamId?: number) {
     const url = teamId ? `/api/simulation/matches?team_id=${teamId}` : '/api/simulation/matches';
     return fetchAPI<{ matches: MatchResult[] }>(url);
 }
 
+// 경기별 놓친 찬스 분석 조회
 export async function matchChances(gameId: number) {
     return fetchAPI<ChanceAnalysis>(`/api/simulation/matches/${gameId}/chances`);
 }

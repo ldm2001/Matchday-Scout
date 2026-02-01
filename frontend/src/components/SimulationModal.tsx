@@ -1,3 +1,4 @@
+// 압박 시뮬레이션 모달 컴포넌트 - 시나리오 비교 및 취약점 체인 표시
 'use client';
 
 import { VulnerabilityChain, PressingSimulation } from '@/types';
@@ -11,6 +12,7 @@ interface SimulationModalProps {
     summary: string;
 }
 
+// 압박/비압박 시나리오 비교, 취약점 체인, 전술 제안 표시
 export default function SimulationModal({
     isOpen,
     onClose,
@@ -78,8 +80,8 @@ export default function SimulationModal({
                                     <div key={i} className="flex items-start gap-4">
                                         <div className="flex flex-col items-center">
                                             <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold ${i === 0 ? 'bg-blue-600 text-white' :
-                                                    i === 1 ? 'bg-yellow-500 text-black' :
-                                                        'bg-green-500 text-white'
+                                                i === 1 ? 'bg-yellow-500 text-black' :
+                                                    'bg-green-500 text-white'
                                                 }`}>
                                                 {i + 1}
                                             </div>

@@ -6,7 +6,6 @@ from services.core.data import teams as team_rows, team_events, matches as match
 
 router = APIRouter()
 
-
 # K리그 팀 목록 조회
 @router.get("/")
 def teams():
@@ -15,7 +14,6 @@ def teams():
         return {"teams": team_list, "count": len(team_list)}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
-
 
 # 전체 팀 성적 개요
 @router.get("/overview")

@@ -1,3 +1,4 @@
+// 피치 리플레이 컴포넌트 - 공격 페이즈 이벤트를 애니메이션으로 재생
 'use client';
 
 import { useState, useEffect, useRef, useCallback } from 'react';
@@ -11,6 +12,7 @@ interface PitchReplayProps {
     onSpeedChange: (speed: number) => void;
 }
 
+// SVG 피치 위에 이벤트 순서대로 마커와 경로 표시, 재생/일시정지/속도 조절 지원
 export default function PitchReplay({
     events,
     isPlaying,
@@ -134,30 +136,30 @@ export default function PitchReplay({
     const easeOutCubic = (t: number) => 1 - Math.pow(1 - t, 3);
 
     return (
-            <div
-                ref={containerRef}
-                style={{
-                    background: 'white',
-                    borderRadius: 12,
-                    padding: 10,
-                    border: '1px solid #e2e8f0',
-                    boxShadow: '0 2px 8px rgba(0,0,0,0.04)',
-                    height: '100%',
-                    display: 'flex',
-                    flexDirection: 'column'
-                }}
-            >
+        <div
+            ref={containerRef}
+            style={{
+                background: 'white',
+                borderRadius: 12,
+                padding: 10,
+                border: '1px solid #e2e8f0',
+                boxShadow: '0 2px 8px rgba(0,0,0,0.04)',
+                height: '100%',
+                display: 'flex',
+                flexDirection: 'column'
+            }}
+        >
             {/* Pitch SVG with fixed height */}
             <div
                 ref={frameRef}
                 style={{
-                height: fieldHeight,
-                width: '100%',
-                position: 'relative',
-                overflow: 'hidden',
-                borderRadius: 8,
-                transition: 'height 0.18s ease'
-            }}>
+                    height: fieldHeight,
+                    width: '100%',
+                    position: 'relative',
+                    overflow: 'hidden',
+                    borderRadius: 8,
+                    transition: 'height 0.18s ease'
+                }}>
                 <svg
                     viewBox={`${-padX} ${-padY} ${viewWidth} ${viewHeight}`}
                     style={{
@@ -336,7 +338,7 @@ export default function PitchReplay({
                         const halfWidth = labelWidth / 2;
                         const edgeNudge =
                             currentEvent.start_x < 12 ? 6 :
-                            currentEvent.start_x > pitchWidth - 12 ? -6 : 0;
+                                currentEvent.start_x > pitchWidth - 12 ? -6 : 0;
                         const labelX = Math.min(
                             Math.max(currentEvent.start_x + edgeNudge, halfWidth + 0.8),
                             pitchWidth - halfWidth - 0.8

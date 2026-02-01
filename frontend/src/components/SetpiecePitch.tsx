@@ -1,5 +1,7 @@
+// 세트피스 피치 시각화 컴포넌트 - 코너킥/프리킥 경로와 타겟존 표시
 'use client';
 
+// 세트피스 루틴 데이터 타입
 interface SetpieceRoutine {
     type: string;
     cluster_id: number;
@@ -16,7 +18,7 @@ interface SetpiecePitchProps {
     routine: SetpieceRoutine;
 }
 
-// Safe number helper
+// 안전한 숫자 변환 (null/undefined/NaN 처리)
 const safeNum = (val: unknown, defaultVal: number): number => {
     if (val === null || val === undefined) return defaultVal;
     const num = Number(val);

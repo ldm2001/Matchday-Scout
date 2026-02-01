@@ -1,3 +1,4 @@
+// 3D 피치 시각화 컴포넌트 - 키 모멘트의 실제/AI 추천 위치 표시
 'use client';
 
 import { useId } from 'react';
@@ -10,12 +11,14 @@ interface Pitch3DProps {
     height?: number;
 }
 
+// 안전한 숫자 변환 (null/undefined/NaN 처리)
 const safeNum = (val: unknown, defaultVal: number): number => {
     if (val === null || val === undefined) return defaultVal;
     const num = Number(val);
     return isNaN(num) || !isFinite(num) ? defaultVal : num;
 };
 
+// SVG 피치에 실제 위치, AI 추천 위치, 이동 경로를 표시
 export default function Pitch3D({ moment, width = 500, height = 350 }: Pitch3DProps) {
     const svgId = useId().replace(/:/g, '');
     const clamp = (val: number, min: number, max: number) => Math.min(max, Math.max(min, val));

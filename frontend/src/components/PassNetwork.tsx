@@ -1,7 +1,9 @@
+// 패스 네트워크 시각화 컴포넌트 - 선수 간 패스 연결을 피치 위에 표시
 'use client';
 
 import { useState } from 'react';
 
+// 네트워크 노드 (선수)
 interface NetworkNode {
     id: string;
     name: string;
@@ -12,6 +14,7 @@ interface NetworkNode {
     avg_y?: number;
 }
 
+// 네트워크 엣지 (패스 연결)
 interface NetworkEdge {
     source: string;
     target: string;
@@ -23,7 +26,7 @@ interface PassNetworkProps {
     edges: NetworkEdge[];
 }
 
-// 포지션별 색상
+// 포지션별 색상 반환
 const getPositionColor = (position: string): string => {
     const pos = position.toUpperCase();
     if (pos.includes('GK')) return '#fbbf24';

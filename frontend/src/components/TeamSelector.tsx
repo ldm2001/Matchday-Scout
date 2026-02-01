@@ -1,3 +1,4 @@
+// 팀 선택 드롭다운 컴포넌트
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -9,6 +10,7 @@ interface TeamSelectorProps {
     onTeamSelect: (team: Team) => void;
 }
 
+// API에서 팀 목록을 불러와 드롭다운으로 선택 가능하게 표시
 export default function TeamSelector({ selectedTeam, onTeamSelect }: TeamSelectorProps) {
     const [teams, setTeams] = useState<Team[]>([]);
     const [isOpen, setIsOpen] = useState(false);

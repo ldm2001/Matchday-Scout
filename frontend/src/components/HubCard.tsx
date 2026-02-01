@@ -1,3 +1,4 @@
+// 빌드업 허브 선수 정보 카드 컴포넌트
 'use client';
 
 import { Hub } from '@/types';
@@ -7,7 +8,9 @@ interface HubCardProps {
     onSimulate?: () => void;
 }
 
+// 허브 영향도에 따른 색상/라벨 표시 및 압박 시뮬레이션 버튼 제공
 export default function HubCard({ hub, onSimulate }: HubCardProps) {
+    // 영향도 점수에 따른 색상 클래스 반환
     const getImpactColor = (score: number) => {
         if (score >= 70) return 'text-red-400 bg-red-500/10';
         if (score >= 40) return 'text-yellow-400 bg-yellow-500/10';

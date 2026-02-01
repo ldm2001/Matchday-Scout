@@ -1,3 +1,4 @@
+// 세트피스 카드 컴포넌트 - 코너킥/프리킥 루틴 정보 표시
 'use client';
 
 import { SetPieceRoutine } from '@/types';
@@ -6,7 +7,9 @@ interface SetPieceCardProps {
     routine: SetPieceRoutine;
 }
 
+// 세트피스 유형, 스윙 타입, 타겟존 및 수비 제안 표시
 export default function SetPieceCard({ routine }: SetPieceCardProps) {
+    // 세트피스 유형별 아이콘 반환
     const getTypeIcon = (type: string) => {
         if (type.includes('Corner')) {
             return (

@@ -1,7 +1,9 @@
+# 비디오 분석 데이터 모델 정의
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional
 
 
+# 비디오 클립 정보 (URL, ID, 시작점, FPS 등)
 @dataclass
 class Clip:
     url: str
@@ -12,6 +14,7 @@ class Clip:
     height: Optional[int] = None
 
 
+# 오버레이 시각화 데이터 (실제/추천 위치, 골까지 각도)
 @dataclass
 class Overlay:
     actual_px: Dict[str, float]
@@ -21,6 +24,7 @@ class Overlay:
     quality: float
 
 
+# 히트맵 셀 데이터
 @dataclass
 class HeatCell:
     row: int
@@ -29,6 +33,7 @@ class HeatCell:
     poly_px: List[Dict[str, float]]
 
 
+# 히트맵 전체 데이터 (실제/추천 영역)
 @dataclass
 class Heatmap:
     rows: int
@@ -38,6 +43,7 @@ class Heatmap:
     max: float = 0.0
 
 
+# 키 모멘트 데이터 (타임스탬프, 위치, 제안)
 @dataclass
 class Moment:
     ts: float
@@ -50,6 +56,7 @@ class Moment:
     overlay: Optional[Overlay] = None
 
 
+# 분석 리포트 데이터 (클립, 모멘트, 히트맵)
 @dataclass
 class Report:
     job_id: str

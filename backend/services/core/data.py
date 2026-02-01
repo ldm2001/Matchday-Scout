@@ -5,9 +5,7 @@ from functools import lru_cache
 
 from .spadl import team_norm, spadl_map
 
-
 DATA_DIR = Path(__file__).resolve().parents[3] / "open_track"
-
 
 def data_stamp() -> tuple:
     raw_path = DATA_DIR / "raw_data.csv"
@@ -24,17 +22,14 @@ def data_stamp() -> tuple:
         match_mark = (0, 0)
     return (raw_mark, match_mark)
 
-
 @lru_cache(maxsize=2)
 def _raw(mark: tuple) -> pd.DataFrame:
     df = pd.read_csv(DATA_DIR / "raw_data.csv", encoding='utf-8-sig')
     df.columns = df.columns.str.strip().str.replace('\ufeff', '')
     return df
 
-
 def raw() -> pd.DataFrame:
     return _raw(data_stamp())
-
 
 @lru_cache(maxsize=2)
 def _matches(mark: tuple) -> pd.DataFrame:
@@ -42,10 +37,8 @@ def _matches(mark: tuple) -> pd.DataFrame:
     df.columns = df.columns.str.strip().str.replace('\ufeff', '')
     return df
 
-
 def matches() -> pd.DataFrame:
     return _matches(data_stamp())
-
 
 def team_events(team_id: int, n_games: int = 5) -> pd.DataFrame:
     events = raw()
@@ -64,7 +57,6 @@ def team_events(team_id: int, n_games: int = 5) -> pd.DataFrame:
     ]
     
     return team_events
-
 
 def match_events(
     team_id: int,
@@ -92,7 +84,6 @@ def match_events(
     if spadl:
         match_events = spadl_map(match_events)
     return match_events
-
 
 def teams() -> list:
     match_df = matches()

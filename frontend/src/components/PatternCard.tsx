@@ -1,3 +1,4 @@
+// 공격 패턴 카드 컴포넌트 - 패턴별 통계 및 리플레이 버튼 표시
 'use client';
 
 import { Pattern } from '@/types';
@@ -8,7 +9,9 @@ interface PatternCardProps {
     onViewReplay?: () => void;
 }
 
+// 패턴 순위, 슈팅 전환율, 평균 패스/시간 및 주요 시퀀스 표시
 export default function PatternCard({ pattern, rank, onViewReplay }: PatternCardProps) {
+    // 순위별 배지 색상 반환
     const getRankBadge = (rank: number) => {
         const colors: Record<number, string> = {
             1: 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30',

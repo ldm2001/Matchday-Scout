@@ -8,7 +8,6 @@ import numpy as np
 PITCH_LENGTH = 105.0
 PITCH_WIDTH = 68.0
 
-
 # SPADL action map
 SPADL_ACTION_MAP: Dict[str, Optional[str]] = {
     "Pass": "pass",
@@ -57,7 +56,6 @@ SPADL_RESULT_MAP: Dict[str, str] = {
     "Own Goal": "owngoal",
 }
 
-
 def _num(value: object, default: float = 0.0) -> float:
     try:
         if value is None:
@@ -68,7 +66,6 @@ def _num(value: object, default: float = 0.0) -> float:
         return f
     except Exception:
         return default
-
 
 # Team-side flip for away games
 def team_norm(
@@ -101,7 +98,6 @@ def team_norm(
 
     return events
 
-
 # Away-team flip for both sides
 def side_norm(events: pd.DataFrame, matches: pd.DataFrame) -> pd.DataFrame:
     events = events.copy()
@@ -126,7 +122,6 @@ def side_norm(events: pd.DataFrame, matches: pd.DataFrame) -> pd.DataFrame:
         events.loc[mask, "dy"] = -pd.to_numeric(events.loc[mask, "dy"], errors="coerce").fillna(0)
 
     return events
-
 
 # SPADL-like fields
 def spadl_map(events: pd.DataFrame) -> pd.DataFrame:
@@ -165,25 +160,21 @@ def spadl_map(events: pd.DataFrame) -> pd.DataFrame:
     events["is_action"] = events["spadl_type"].notna()
     return events
 
-
 # Action rows only
 def action_rows(events: pd.DataFrame) -> pd.DataFrame:
     if "spadl_type" not in events.columns:
         events = spadl_map(events)
     return events[events["spadl_type"].notna()].copy()
 
-
 def goal_flag(event: pd.Series) -> bool:
     t = str(event.get("type_name", ""))
     r = str(event.get("result_name", ""))
     return t == "Goal" or r == "Goal"
 
-
 def goal_dist(x: float, y: float) -> float:
     x = _num(x, PITCH_LENGTH / 2)
     y = _num(y, PITCH_WIDTH / 2)
     return float(np.hypot(PITCH_LENGTH - x, (PITCH_WIDTH / 2) - y))
-
 
 def goal_angle(x: float, y: float) -> float:
     x = _num(x, PITCH_LENGTH / 2)

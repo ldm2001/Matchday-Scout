@@ -1,6 +1,8 @@
+// 팀 분석 유틸리티 - 패턴, 세트피스, 허브 데이터로 강점/약점 도출
 import { Pattern, SetPieceRoutine, Hub } from '@/types';
 import { TeamAnalysis } from '@/lib/api';
 
+// 점수화된 분석 항목 타입
 type ScoredItem = {
   category: string;
   title: string;
@@ -8,16 +10,19 @@ type ScoredItem = {
   score: number;
 };
 
+// 배열 평균 계산
 const mean = (values: number[]) => {
   if (!values.length) return 0;
   const total = values.reduce((sum, value) => sum + (Number.isFinite(value) ? value : 0), 0);
   return total / values.length;
 };
 
+// 점수를 min~max 범위로 제한
 const scoreClamp = (value: number, min: number, max: number) => {
   return Math.min(max, Math.max(min, Math.floor(value)));
 };
 
+// 강점/약점 기반 요약 문장 생성
 const generateSummary = (strengths: ScoredItem[], weaknesses: ScoredItem[]) => {
   if (!strengths.length && !weaknesses.length) return '분석할 데이터가 부족합니다.';
 
@@ -34,6 +39,7 @@ const generateSummary = (strengths: ScoredItem[], weaknesses: ScoredItem[]) => {
   return `${parts.join('. ')}.`;
 };
 
+// 팀 분석 객체 생성 - 패턴/세트피스/허브 데이터 종합
 export function buildTeamAnalysis(
   teamId: number,
   patterns: Pattern[],

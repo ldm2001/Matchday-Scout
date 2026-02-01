@@ -1,9 +1,11 @@
+// 비디오 분석 컴포넌트 - 유튜브/업로드 영상에서 포지셔닝 분석 및 히트맵 표시
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { getVideoJob, startVideoJob, uploadVideoJob, VideoJob, VideoMoment } from '@/lib/api';
 import styles from './VideoAnalysis.module.css';
 
+// 유튜브 URL에서 비디오 ID 추출
 const pickId = (url: string) => {
   try {
     const info = new URL(url);
@@ -332,7 +334,7 @@ export default function VideoAnalysis() {
       videoRef.current.currentTime = ts;
       const promise = videoRef.current.play();
       if (promise && typeof promise.catch === 'function') {
-        promise.catch(() => {});
+        promise.catch(() => { });
       }
       return;
     }
@@ -620,7 +622,7 @@ export default function VideoAnalysis() {
       setTimeout(() => {
         const promise = videoRef.current?.play();
         if (promise && typeof promise.catch === 'function') {
-          promise.catch(() => {});
+          promise.catch(() => { });
         }
       }, 900);
       return;
