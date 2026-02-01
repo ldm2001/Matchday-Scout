@@ -1,4 +1,4 @@
-// 비디오 분석 컴포넌트 - 유튜브/업로드 영상에서 포지셔닝 분석 및 히트맵 표시
+// 유튜브/업로드 영상에서 포지셔닝 분석 및 히트맵 표시
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
@@ -194,6 +194,9 @@ export default function VideoAnalysis() {
   };
   const jobError = job?.status === 'fail' ? formatJobError(job.error || '분석에 실패했습니다.') : '';
 
+  const jobKey = job?.job_id ?? '';
+  const jobStatus = job?.status ?? '';
+
   const videoId = useMemo(() => {
     if (job?.report?.clip?.video_id && job.report.clip.video_id.length === 11) {
       return job.report.clip.video_id;
@@ -210,7 +213,7 @@ export default function VideoAnalysis() {
     return `https://www.youtube.com/embed/${videoId}?start=${start}&autoplay=1&mute=1&rel=0`;
   }, [videoId, playerStart]);
 
-  const moments: VideoMoment[] = job?.report?.moments ?? [];
+  const moments = useMemo<VideoMoment[]>(() => job?.report?.moments ?? [], [job?.report?.moments]);
   const working = job ? ['queued', 'run'].includes(job.status) : false;
   const heatmap = job?.report?.heatmap;
   const packedHeat = useMemo(() => {
@@ -308,18 +311,18 @@ export default function VideoAnalysis() {
   }, [file]);
 
   useEffect(() => {
-    if (!job) return;
-    if (!['queued', 'run'].includes(job.status)) return;
+    if (!jobKey) return;
+    if (!['queued', 'run'].includes(jobStatus)) return;
     const timer = setInterval(async () => {
       try {
-        const fresh = await getVideoJob(job.job_id);
+        const fresh = await getVideoJob(jobKey);
         setJob(fresh);
       } catch {
         clearInterval(timer);
       }
     }, 1500);
     return () => clearInterval(timer);
-  }, [job?.job_id, job?.status]);
+  }, [jobKey, jobStatus]);
 
   const handlePick = (ts: number) => {
     setSeek(ts);
@@ -385,21 +388,23 @@ export default function VideoAnalysis() {
     let cancelled = false;
     const load = () =>
       new Promise<void>((resolve) => {
-        if (window.YT && window.YT.Player) {
+        if (window.YT?.Player) {
           resolve();
           return;
         }
         const script = document.createElement('script');
         script.src = 'https://www.youtube.com/iframe_api';
         document.body.appendChild(script);
-        (window as any).onYouTubeIframeAPIReady = () => resolve();
+        window.onYouTubeIframeAPIReady = () => resolve();
       });
     load().then(() => {
       if (cancelled) return;
       if (ytPlayerRef.current) {
         ytPlayerRef.current.destroy();
       }
-      ytPlayerRef.current = new window.YT.Player(playerHostRef.current as HTMLDivElement, {
+      const Player = window.YT?.Player;
+      if (!Player) return;
+      ytPlayerRef.current = new Player(playerHostRef.current as HTMLDivElement, {
         videoId,
         playerVars: {
           rel: 0,
@@ -408,7 +413,7 @@ export default function VideoAnalysis() {
           start: Math.floor(baseStart),
         },
         events: {
-          onReady: (event) => {
+          onReady: (event: YT.OnReadyEvent) => {
             if (seek !== null) {
               event.target.seekTo(seek, true);
             }
