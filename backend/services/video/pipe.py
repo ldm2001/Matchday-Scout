@@ -46,7 +46,7 @@ MODEL = None
 HEAT_ROWS = 12
 HEAT_COLS = 16
 
-
+# torch 안전 로드 허용
 def _torch_safe() -> None:
     if torch is None:
         return
@@ -102,7 +102,6 @@ def _profile_hint(browser: str) -> str | None:
     picks.sort(key=lambda x: x[1], reverse=True)
     return picks[0][0]
 
-
 def _sec(val: str) -> int:
     if not val:
         return 0
@@ -129,7 +128,7 @@ def _sec(val: str) -> int:
         total += int(buf)
     return total
 
-
+# 유튜브 id 추출
 def _vid_id(url: str) -> Tuple[str, int]:
     if not url:
         return "", 0
@@ -150,7 +149,7 @@ def _vid_id(url: str) -> Tuple[str, int]:
     start = _sec(qs.get("t", qs.get("start", ["0"]))[0])
     return vid, start
 
-
+# 파일 클립 메타
 def _clip_path(path: Path) -> Clip:
     if cv2 is None:
         raise RuntimeError("opencv missing")
@@ -162,7 +161,7 @@ def _clip_path(path: Path) -> Clip:
     name = path.stem
     return Clip(url=str(path), video_id=name, start=0, fps=fps, width=width, height=height)
 
-
+# YOLO 모델 로드
 def _model() -> "YOLOType":
     global MODEL
     if MODEL is None:
@@ -172,7 +171,7 @@ def _model() -> "YOLOType":
         MODEL = YOLO("yolov8n.pt")
     return MODEL
 
-
+# 잔디 마스크
 def _mask(frame: np.ndarray) -> np.ndarray:
     hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
     lower = np.array([35, 35, 35])
@@ -183,7 +182,6 @@ def _mask(frame: np.ndarray) -> np.ndarray:
     mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel)
     return mask
 
-
 def _box(pts: np.ndarray) -> np.ndarray:
     total = pts.sum(axis=1)
     diff = np.diff(pts, axis=1).reshape(-1)
@@ -193,22 +191,19 @@ def _box(pts: np.ndarray) -> np.ndarray:
     bl = pts[np.argmax(diff)]
     return np.array([tl, tr, br, bl], dtype=np.float32)
 
-
+# 필드 좌표 변환
 def _pitch(pt: np.ndarray, mat: np.ndarray) -> np.ndarray:
     pack = np.array([[pt]], dtype=np.float32)
     out = cv2.perspectiveTransform(pack, mat)
     return out[0][0]
 
-
 def _clip(val: float, low: float, high: float) -> float:
     return float(max(low, min(high, val)))
-
 
 def _norm(val: float, size: float, scale: float) -> float:
     if size <= 0:
         return 0.0
     return _clip(val / size * scale, 0.0, scale)
-
 
 def _pitch_px(pt: Tuple[float, float], inv: np.ndarray | None, clip: Clip) -> Tuple[float, float]:
     if cv2 is not None and inv is not None:
@@ -221,12 +216,10 @@ def _pitch_px(pt: Tuple[float, float], inv: np.ndarray | None, clip: Clip) -> Tu
         return 0.0, 0.0
     return float(pt[0] / 105.0 * width), float(pt[1] / 68.0 * height)
 
-
 def _grid_idx(x: float, y: float, rows: int, cols: int) -> Tuple[int, int]:
     col = int(_clip(x / 105.0 * cols, 0, cols - 1))
     row = int(_clip(y / 68.0 * rows, 0, rows - 1))
     return row, col
-
 
 def _heat_cells(grid: List[List[float]], inv: np.ndarray | None, clip: Clip) -> List[HeatCell]:
     cells: List[HeatCell] = []
@@ -257,7 +250,6 @@ def _heat_cells(grid: List[List[float]], inv: np.ndarray | None, clip: Clip) -> 
             )
     return cells
 
-
 def _shot_angle(x: float, y: float) -> float:
     left = (105.0, 34.0 - 3.66)
     right = (105.0, 34.0 + 3.66)
@@ -270,7 +262,6 @@ def _shot_angle(x: float, y: float) -> float:
     cosv = max(-1.0, min(1.0, dot / denom))
     return math.degrees(math.acos(cosv))
 
-
 def _lane(x: float) -> str:
     if x >= 88.0:
         return "박스 안"
@@ -278,14 +269,12 @@ def _lane(x: float) -> str:
         return "박스 근처"
     return "중앙 지역"
 
-
 def _zone(y: float) -> str:
     if y < 22.5:
         return "좌측"
     if y > 45.5:
         return "우측"
     return "중앙"
-
 
 class Link:
     key = "link"
@@ -342,7 +331,6 @@ class Link:
         ctx["notes"].append("link_ok")
         return ctx
 
-
 class Calib:
     key = "calib"
 
@@ -379,7 +367,6 @@ class Calib:
         ctx["calib"] = {"mat": mat, "inv": inv, "quality": quality}
         ctx["notes"].append(f"calib_{quality:.2f}")
         return ctx
-
 
 class Track:
     key = "track"
@@ -468,7 +455,6 @@ class Track:
         ctx["notes"].append(f"player_{player_count}")
         return ctx
 
-
 class Event:
     key = "event"
 
@@ -501,7 +487,6 @@ class Event:
         ctx["events"] = picks
         ctx["notes"].append(f"events_{len(picks)}")
         return ctx
-
 
 class Value:
     key = "value"
@@ -577,7 +562,6 @@ class Suggest:
         ctx["mode"] = "basic"
         return ctx
 
-
 class Heat:
     key = "heat"
 
@@ -612,7 +596,6 @@ class Heat:
         ctx["notes"].append("heatmap_ok")
         return ctx
 
-
 class Pipe:
     def __init__(self, steps: List = None) -> None:
         self.steps = steps or [Link(), Calib(), Track(), Event(), Value(), Suggest(), Heat()]
@@ -639,7 +622,6 @@ class Pipe:
             heatmap=ctx.get("heatmap"),
         )
         return report
-
 
 def payload(report: Report) -> Dict:
     data = asdict(report)

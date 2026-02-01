@@ -294,6 +294,7 @@ class Sim:
         return sorted(tips, key=lambda x: x["priority"])
 
 
+# 프리매치 결과 생성
 def prematch(our_events: pd.DataFrame, opponent_events: pd.DataFrame) -> Dict:
     if our_events.empty or opponent_events.empty:
         return {
