@@ -3,6 +3,7 @@
 > K리그 이벤트 데이터 기반 AI 전술 분석 플랫폼
 > **경기 전, 승부는 이미 시작된다**
 
+<img width="1728" height="961" alt="메인 화면 썸네일" src="https://github.com/user-attachments/assets/89b7d5d6-b6fb-405f-adec-bb519653a55f" />
 https://youtu.be/jrm1NChYSYc
 
 ## 프로젝트 개요
