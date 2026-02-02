@@ -14,12 +14,14 @@ app = FastAPI(
 )
 
 # CORS 설정
+CORS_ORIGINS = os.getenv("CORS_ORIGINS", "http://localhost:3000").split(",")
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=[origin.strip() for origin in CORS_ORIGINS],
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allow_headers=["Content-Type", "Authorization", "Accept"],
 )
 
 # 라우터 등록
@@ -35,11 +37,9 @@ app.include_router(video.router, prefix="/api/video", tags=["Video"])
 def root():
     return {"message": "Matchday Scout API", "status": "running"}
 
-
 @app.get("/health")
 def health():
     return {"status": "healthy"}
-
 
 # Cache warm for faster first responses
 @app.on_event("startup")

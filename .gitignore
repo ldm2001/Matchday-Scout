@@ -3,3 +3,15 @@ open_track/
 __pycache__/
 *.pyc
 backend/cache/
+
+# 환경변수 파일
+.env
+.env.local
+.env.*.local
+backend/.env
+frontend/.env
+frontend/.env.local
+docs/.bkit-memory.json
+.gitignore
+backend/README.md
+docs/.pdca-status.json
