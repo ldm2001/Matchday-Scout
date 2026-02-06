@@ -44,7 +44,7 @@ const cleanText = (val: unknown, fallback: string): string => {
 };
 
 // CSS 3D 미니 피치
-function MiniPitch3D({ moment, index }: { moment: KeyMoment; index: number }) {
+function MiniPitch3D({ moment }: { moment: KeyMoment }) {
     const x = safeNum(moment.position?.x, 75);
     const y = safeNum(moment.position?.y, 34);
     const suggestX = safeNum(moment.suggestion?.target_position?.x || moment.suggestion?.target_x, x + 10);
@@ -169,6 +169,11 @@ function Modal3D({ moment, onClose, teamName }: { moment: KeyMoment; onClose: ()
     const deltaLabel = deltaXg !== null
         ? `${deltaXg > 0 ? '+' : ''}${deltaXg.toFixed(1)}%p`
         : (moment.suggestion?.xg_improvement || '—');
+    const deltaToneClass = deltaXg === null
+        ? styles.deltaNeutral
+        : deltaXg >= 0
+            ? styles.deltaPositive
+            : styles.deltaNegative;
 
     const distanceLabel = Number.isFinite(goalDistance) ? goalLabel : '—';
 
@@ -224,7 +229,7 @@ function Modal3D({ moment, onClose, teamName }: { moment: KeyMoment; onClose: ()
                             </div>
                         </div>
                         <div className={styles.headerRight}>
-                            <div className={styles.deltaPill}>
+                            <div className={`${styles.deltaPill} ${deltaToneClass}`}>
                                 개선 {deltaLabel}
                             </div>
                             <button
@@ -255,6 +260,27 @@ function Modal3D({ moment, onClose, teamName }: { moment: KeyMoment; onClose: ()
                             </span>
                         </div>
 
+                        <div className={styles.scoreRow}>
+                            <div className={styles.scoreCard}>
+                                <div className={styles.scoreLabel}>실제 xG</div>
+                                <div className={styles.scoreValue}>
+                                    {actualXg !== null ? `${actualXg.toFixed(1)}%` : '—'}
+                                </div>
+                                <div className={styles.scoreFoot}>실제 위치</div>
+                            </div>
+                            <div className={styles.scoreBridge}>
+                                <span className={styles.scoreBridgeLabel}>xG 변화</span>
+                                <span className={`${styles.scoreDelta} ${deltaToneClass}`}>{deltaLabel}</span>
+                            </div>
+                            <div className={`${styles.scoreCard} ${styles.scoreCardSuggest}`}>
+                                <div className={styles.scoreLabel}>AI 제안 xG</div>
+                                <div className={`${styles.scoreValue} ${styles.scoreValueSuggest}`}>
+                                    {expectedXg !== null ? `${expectedXg.toFixed(1)}%` : '—'}
+                                </div>
+                                <div className={styles.scoreFoot}>추천 위치 기준</div>
+                            </div>
+                        </div>
+
                         <div className={styles.statStrip}>
                             <div className={styles.statItem}>
                                 <div className={styles.statLabel}>실제 위치</div>
@@ -271,27 +297,6 @@ function Modal3D({ moment, onClose, teamName }: { moment: KeyMoment; onClose: ()
                             <div className={styles.statItem}>
                                 <div className={styles.statLabel}>골까지 거리</div>
                                 <div className={styles.statValue}>{goalLabel}</div>
-                            </div>
-                        </div>
-
-                        <div className={styles.scoreRow}>
-                            <div className={styles.scoreCard}>
-                                <div className={styles.scoreLabel}>실제 xG</div>
-                                <div className={styles.scoreValue}>
-                                    {actualXg !== null ? `${actualXg.toFixed(1)}%` : '—'}
-                                </div>
-                                <div className={styles.scoreFoot}>실제 위치</div>
-                            </div>
-                            <div className={styles.scoreBridge}>
-                                <span className={styles.scoreArrow}>→</span>
-                                <span className={styles.scoreDelta}>{deltaLabel}</span>
-                            </div>
-                            <div className={`${styles.scoreCard} ${styles.scoreCardSuggest}`}>
-                                <div className={styles.scoreLabel}>AI 제안 xG</div>
-                                <div className={`${styles.scoreValue} ${styles.scoreValueSuggest}`}>
-                                    {expectedXg !== null ? `${expectedXg.toFixed(1)}%` : '—'}
-                                </div>
-                                <div className={styles.scoreFoot}>추천 위치 기준</div>
                             </div>
                         </div>
 
@@ -400,7 +405,7 @@ export default function KeyMomentPitch({ moments, teamName }: KeyMomentPitchProp
                     <div className={styles.momentBody}>
                         {/* 3D 미니 피치 - 클릭하면 모달 */}
                         <div className={styles.momentPitch} onClick={() => setSelectedMoment(moment)}>
-                            <MiniPitch3D moment={moment} index={i} />
+                            <MiniPitch3D moment={moment} />
                         </div>
 
                         {/* 분석 정보 */}

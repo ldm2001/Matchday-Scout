@@ -76,6 +76,7 @@ export default function Home() {
   const simToken = useRef(0);
   const simKeyRef = useRef<string | null>(null);
   const simDataRef = useRef<string | null>(null);
+  const contentScrollRef = useRef<HTMLDivElement | null>(null);
 
   const [patterns, setPatterns] = useState<Pattern[]>([]);
   const [setpieces, setSetpieces] = useState<SetPieceRoutine[]>([]);
@@ -337,6 +338,17 @@ export default function Home() {
     { id: 'video', label: '영상 분석' },
   ];
 
+  const handleTabChange = useCallback((tab: Tab) => {
+    if (tab === activeTab) return;
+    const scroller = contentScrollRef.current;
+    if (scroller) {
+      scroller.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+    window.requestAnimationFrame(() => {
+      setActiveTab(tab);
+    });
+  }, [activeTab]);
+
   // 프리매치 시뮬레이션 실행
   const runSimulation = useCallback(async (ourTeam: TeamStanding, oppTeam: TeamStanding) => {
     if (!ourTeam || !oppTeam) return;
@@ -590,7 +602,7 @@ export default function Home() {
                   <button
                     key={tab.id}
                     className={`tab ${activeTab === tab.id ? 'active' : ''}`}
-                    onClick={() => setActiveTab(tab.id as Tab)}
+                    onClick={() => handleTabChange(tab.id as Tab)}
                   >
                     {tab.label}
                   </button>
@@ -598,7 +610,7 @@ export default function Home() {
               </div>
             </div>
 
-            <div className="content-scroll">
+            <div className="content-scroll" ref={contentScrollRef}>
               {activeTab === 'overview' && (
                 <div className={styles.overviewScroll}>
                   <div className="stats-grid">
@@ -1355,6 +1367,7 @@ export default function Home() {
                   <VideoAnalysis />
                 </div>
               )}
+
             </div>
           </>
         )}

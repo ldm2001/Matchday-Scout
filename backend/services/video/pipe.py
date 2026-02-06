@@ -39,12 +39,14 @@ CACHE = ROOT / "cache" / "video"
 CACHE.mkdir(parents=True, exist_ok=True)
 
 MAX_SEC = 90
-STEP_SEC = 1
+STEP_SEC = 0.5
 MAX_SAMPLES = 180
-MIN_CONF = 0.2
+MIN_CONF = 0.15
 MODEL = None
 HEAT_ROWS = 12
 HEAT_COLS = 16
+BALL_CLASS = 32
+PLAYER_CLASS = 0
 
 # torch 안전 로드 허용
 def _torch_safe() -> None:
@@ -276,6 +278,128 @@ def _zone(y: float) -> str:
         return "우측"
     return "중앙"
 
+
+def _shot_value(dist: float, angle: float) -> float:
+    dist_term = 1.0 / (1.0 + math.exp((dist - 18.0) / 5.5))
+    angle_term = 1.0 / (1.0 + math.exp(-(angle - 14.0) / 5.0))
+    raw = 0.05 + 0.75 * dist_term + 0.2 * angle_term
+    return _clip(raw, 0.0, 0.98)
+
+
+def _moment_label(
+    x: float,
+    y: float,
+    dist: float,
+    angle: float,
+    vx: float,
+    vy: float,
+) -> str:
+    speed = math.hypot(vx, vy)
+    to_goal_x = 105.0 - x
+    to_goal_y = 34.0 - y
+    goal_norm = max(1e-6, math.hypot(to_goal_x, to_goal_y))
+    toward_goal = (vx * to_goal_x + vy * to_goal_y) / goal_norm
+    center_gap = abs(y - 34.0)
+    lateral_speed = abs(vy)
+
+    if dist <= 13.5 and angle >= 15.0:
+        return "골문 정면 결정 찬스"
+    if x >= 96.0 and center_gap >= 10.0:
+        return "바이라인 침투"
+    if x >= 90.0 and center_gap <= 9.0 and toward_goal >= 2.0:
+        return "컷백 유도 침투"
+    if x >= 84.0 and center_gap >= 11.0:
+        return "하프스페이스 파고듦"
+    if dist <= 28.0 and angle < 10.0:
+        return "박스 외곽 슈팅 준비"
+    if speed >= 5.0 and toward_goal >= 2.5:
+        return "전환 속공 전개"
+    if lateral_speed >= max(2.2, speed * 0.58) and x >= 60.0:
+        return "측면 스위치 전개"
+    if x < 62.0 and toward_goal >= 2.0 and speed >= 3.5:
+        return "압박 회피 전진"
+    if speed < 1.2 and x < 70.0:
+        return "점유 안정 빌드업"
+    if x >= 88.0:
+        return "박스 진입"
+    if x >= 74.0:
+        return "공격 전개"
+    return "중원 전진 빌드업"
+
+
+def _tempo_note(x: float, y: float, vx: float, vy: float) -> str:
+    speed = math.hypot(vx, vy)
+    to_goal_x = 105.0 - x
+    to_goal_y = 34.0 - y
+    goal_norm = max(1e-6, math.hypot(to_goal_x, to_goal_y))
+    toward_goal = (vx * to_goal_x + vy * to_goal_y) / goal_norm
+    if speed >= 6.0:
+        tempo = "고속"
+    elif speed >= 3.0:
+        tempo = "중속"
+    else:
+        tempo = "저속"
+    if toward_goal >= 3.2:
+        drive = "직선 침투"
+    elif toward_goal >= 1.2:
+        drive = "전진 유지"
+    elif toward_goal <= -0.6:
+        drive = "리사이클"
+    else:
+        drive = "횡전개"
+    side = "중앙"
+    if y < 22.5:
+        side = "좌"
+    elif y > 45.5:
+        side = "우"
+    return f"{tempo} 템포 · {side} {drive}"
+
+
+def _smooth_points(points: List[Dict], window: int = 2) -> List[Dict]:
+    if len(points) < 3:
+        return points
+    smooth: List[Dict] = []
+    size = len(points)
+    for idx, item in enumerate(points):
+        x_acc = 0.0
+        y_acc = 0.0
+        w_acc = 0.0
+        left = max(0, idx - window)
+        right = min(size, idx + window + 1)
+        for pos in range(left, right):
+            peer = points[pos]
+            hop = abs(pos - idx)
+            dist_w = 1.0 / (1.0 + hop)
+            conf_w = max(0.05, float(peer.get("conf", 0.1)))
+            w = dist_w * conf_w
+            x_acc += float(peer["x"]) * w
+            y_acc += float(peer["y"]) * w
+            w_acc += w
+        if w_acc <= 0:
+            smooth.append(item.copy())
+            continue
+        target_x = x_acc / w_acc
+        target_y = y_acc / w_acc
+        blend = 0.62 if 0 < idx < size - 1 else 0.28
+        smooth.append({
+            **item,
+            "x": float(item["x"]) * (1.0 - blend) + target_x * blend,
+            "y": float(item["y"]) * (1.0 - blend) + target_y * blend,
+        })
+    for idx in range(1, len(smooth)):
+        prev = smooth[idx - 1]
+        cur = smooth[idx]
+        dt = max(0.2, float(cur["ts"]) - float(prev["ts"]))
+        max_step = 18.0 * dt + 0.8
+        dx = float(cur["x"]) - float(prev["x"])
+        dy = float(cur["y"]) - float(prev["y"])
+        dist = math.hypot(dx, dy)
+        if dist > max_step and dist > 0:
+            ratio = max_step / dist
+            cur["x"] = float(prev["x"]) + dx * ratio
+            cur["y"] = float(prev["y"]) + dy * ratio
+    return smooth
+
 class Link:
     key = "link"
 
@@ -394,7 +518,12 @@ class Track:
         ball_count = 0
         player_count = 0
         samples = 0
+        drop_count = 0
         frame_idx = start
+        prev_point: Dict | None = None
+        vel_x = 0.0
+        vel_y = 0.0
+        step_sec = max(sample_step / fps, 0.05)
         while frame_idx < end_frame:
             cap.set(cv2.CAP_PROP_POS_FRAMES, frame_idx)
             ok, frame = cap.read()
@@ -404,55 +533,89 @@ class Track:
             samples += 1
             rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
             res = model(rgb, verbose=False)[0]
-            ball = None
-            ball_conf = 0.0
-            player = None
-            player_conf = 0.0
+            ts = frame_idx / fps
+            cand = []
             for box in res.boxes:
                 cls = int(box.cls[0])
                 conf = float(box.conf[0])
-                if cls == 32 and conf > ball_conf:
-                    ball = box.xyxy[0].cpu().numpy()
-                    ball_conf = conf
-                if cls == 0 and conf > player_conf:
-                    player = box.xyxy[0].cpu().numpy()
-                    player_conf = conf
-            pick = None
-            pick_conf = 0.0
-            kind = "ball"
-            if ball is not None and ball_conf >= MIN_CONF:
-                pick = ball
-                pick_conf = ball_conf
-                kind = "ball"
-            elif player is not None and player_conf >= MIN_CONF:
-                pick = player
-                pick_conf = player_conf * 0.4
-                kind = "player"
-            if pick is not None:
-                cx = float((pick[0] + pick[2]) / 2)
-                cy = float((pick[1] + pick[3]) / 2)
+                if cls not in (BALL_CLASS, PLAYER_CLASS):
+                    continue
+                if conf < MIN_CONF:
+                    continue
+                xyxy = box.xyxy[0].cpu().numpy()
+                cx = float((xyxy[0] + xyxy[2]) / 2)
+                cy = float((xyxy[1] + xyxy[3]) / 2)
                 if mat is not None:
                     out = _pitch(np.array([cx, cy], dtype=np.float32), mat)
                     px = _clip(out[0], 0.0, 105.0)
                     py = _clip(out[1], 0.0, 68.0)
-                    conf = pick_conf * max(0.2, quality)
+                    base_conf = conf * max(0.25, quality)
                 else:
                     px = _norm(cx, frame.shape[1], 105.0)
                     py = _norm(cy, frame.shape[0], 68.0)
-                    conf = pick_conf * 0.25
-                ts = frame_idx / fps
-                points.append({"ts": ts, "x": px, "y": py, "conf": conf, "kind": kind})
+                    base_conf = conf * 0.22
+                kind = "ball" if cls == BALL_CLASS else "player"
                 if kind == "ball":
                     ball_count += 1
                 else:
                     player_count += 1
+                class_bias = 1.0 if kind == "ball" else 0.65
+                cand.append({
+                    "ts": ts,
+                    "x": px,
+                    "y": py,
+                    "conf": base_conf * class_bias,
+                    "kind": kind,
+                })
+            pick: Dict | None = None
+            if cand:
+                if prev_point is None:
+                    pick = max(cand, key=lambda row: row["conf"] + (0.12 if row["kind"] == "ball" else 0.0))
+                else:
+                    pred_x = float(prev_point["x"]) + vel_x * step_sec
+                    pred_y = float(prev_point["y"]) + vel_y * step_sec
+                    best_score = -1e9
+                    for row in cand:
+                        dx = float(row["x"]) - pred_x
+                        dy = float(row["y"]) - pred_y
+                        jump = math.hypot(dx, dy)
+                        motion_penalty = jump / 24.0
+                        kind_bonus = 0.1 if row["kind"] == "ball" else 0.0
+                        stay_bonus = 0.05 if row["kind"] == prev_point.get("kind") else 0.0
+                        score = float(row["conf"]) * 1.45 + kind_bonus + stay_bonus - motion_penalty
+                        if score > best_score:
+                            best_score = score
+                            pick = row
+                    if pick is not None:
+                        jump = math.hypot(float(pick["x"]) - float(prev_point["x"]), float(pick["y"]) - float(prev_point["y"]))
+                        speed = jump / max(step_sec, 0.05)
+                        if speed > 45.0 and float(pick["conf"]) < 0.35:
+                            drop_count += 1
+                            pick = None
+            if pick is not None:
+                if prev_point is not None:
+                    dx = float(pick["x"]) - float(prev_point["x"])
+                    dy = float(pick["y"]) - float(prev_point["y"])
+                    jump = math.hypot(dx, dy)
+                    if jump > 14.0 and float(pick["conf"]) < 0.45:
+                        damp = 0.58
+                        pick["x"] = float(prev_point["x"]) + dx * damp
+                        pick["y"] = float(prev_point["y"]) + dy * damp
+                    cur_vx = (float(pick["x"]) - float(prev_point["x"])) / max(step_sec, 0.05)
+                    cur_vy = (float(pick["y"]) - float(prev_point["y"])) / max(step_sec, 0.05)
+                    vel_x = vel_x * 0.42 + cur_vx * 0.58
+                    vel_y = vel_y * 0.42 + cur_vy * 0.58
+                points.append(pick)
+                prev_point = pick
             frame_idx += sample_step
         cap.release()
+        points = _smooth_points(points)
         ctx["points"] = points
         ctx["notes"].append(f"points_{len(points)}")
         ctx["notes"].append(f"samples_{samples}")
         ctx["notes"].append(f"ball_{ball_count}")
         ctx["notes"].append(f"player_{player_count}")
+        ctx["notes"].append(f"drops_{drop_count}")
         return ctx
 
 class Event:
@@ -460,30 +623,84 @@ class Event:
 
     def unit(self, ctx: Dict) -> Dict:
         points = ctx.get("points", [])
+        if not points:
+            ctx["events"] = []
+            ctx["notes"].append("events_0")
+            return ctx
         goal = (105.0, 34.0)
+        rows_src = sorted(points, key=lambda item: float(item["ts"]))
         rows = []
-        for item in points:
-            dist = math.hypot(goal[0] - item["x"], goal[1] - item["y"])
-            score = item["conf"] * (1.0 / (1.0 + dist / 24.0))
+        prev = None
+        for item in rows_src:
+            ts = float(item["ts"])
+            x = float(item["x"])
+            y = float(item["y"])
+            dist = math.hypot(goal[0] - x, goal[1] - y)
+            angle = _shot_angle(x, y)
+            if prev is None:
+                vx = 0.0
+                vy = 0.0
+            else:
+                dt = max(0.05, ts - float(prev["ts"]))
+                vx = (x - float(prev["x"])) / dt
+                vy = (y - float(prev["y"])) / dt
+            to_goal_x = goal[0] - x
+            to_goal_y = goal[1] - y
+            goal_norm = max(1e-6, math.hypot(to_goal_x, to_goal_y))
+            toward_goal = max(0.0, (vx * to_goal_x + vy * to_goal_y) / goal_norm)
+            dist_score = 1.0 / (1.0 + dist / 21.0)
+            angle_score = _clip((angle - 6.0) / 24.0, 0.0, 1.0)
+            pace_score = _clip(toward_goal / 9.0, 0.0, 1.0)
+            kind = item.get("kind", "ball")
+            kind_scale = 1.0 if kind == "ball" else 0.76
+            score = float(item["conf"]) * (0.6 * dist_score + 0.25 * angle_score + 0.15 * pace_score) * kind_scale
             rows.append({
-                "ts": item["ts"],
-                "x": item["x"],
-                "y": item["y"],
-                "conf": item["conf"],
+                "ts": ts,
+                "x": x,
+                "y": y,
+                "conf": float(item["conf"]),
                 "dist": dist,
+                "angle": angle,
+                "vx": vx,
+                "vy": vy,
                 "score": score,
-                "kind": item.get("kind", "ball"),
+                "kind": kind,
             })
-        rows.sort(key=lambda x: x["score"], reverse=True)
+            prev = item
+        candidates = []
+        peak_floor = 0.025 if len(rows) >= 20 else 0.015
+        for idx, row in enumerate(rows):
+            left = max(0, idx - 2)
+            right = min(len(rows), idx + 3)
+            local_max = max(item["score"] for item in rows[left:right])
+            if row["score"] >= local_max * 0.9 and row["score"] >= peak_floor:
+                candidates.append(row)
+        if not candidates:
+            backup = sorted(
+                rows,
+                key=lambda item: (item["score"], item["conf"], -item["dist"]),
+                reverse=True,
+            )
+            for row in backup:
+                if float(row["conf"]) < 0.07 and float(row["dist"]) > 72.0:
+                    continue
+                candidates.append(row)
+                if len(candidates) >= 8:
+                    break
+            ctx["notes"].append("event_fallback")
+        candidates.sort(key=lambda item: item["score"], reverse=True)
         picks = []
-        for row in rows:
-            if row["score"] <= 0:
-                continue
-            if any(abs(row["ts"] - p["ts"]) < 6 for p in picks):
+        min_gap = 4.0
+        for row in candidates:
+            if any(abs(row["ts"] - item["ts"]) < min_gap for item in picks):
                 continue
             picks.append(row)
-            if len(picks) >= 4:
+            if len(picks) >= 5:
                 break
+        if not picks and rows:
+            picks.append(max(rows, key=lambda item: (item["score"], item["conf"])))
+            ctx["notes"].append("event_single")
+        picks.sort(key=lambda item: item["ts"])
         ctx["events"] = picks
         ctx["notes"].append(f"events_{len(picks)}")
         return ctx
@@ -495,9 +712,12 @@ class Value:
         events = ctx.get("events", [])
         rows = []
         for item in events:
-            dist = item["dist"]
-            gain = max(0.0, (60.0 - dist) / 60.0) * 7.0
-            rows.append({**item, "delta": gain})
+            dist = float(item["dist"])
+            angle = float(item.get("angle", _shot_angle(float(item["x"]), float(item["y"]))))
+            chance = _shot_value(dist, angle)
+            trust = _clip(float(item.get("conf", 0.0)) / 0.75, 0.0, 1.0)
+            value = chance * (0.75 + 0.25 * trust)
+            rows.append({**item, "value": value, "delta": 0.0})
         ctx["values"] = rows
         ctx["notes"].append(f"value_{len(rows)}")
         return ctx
@@ -512,27 +732,89 @@ class Suggest:
         calib = ctx.get("calib", {})
         inv = calib.get("inv")
         quality = float(calib.get("quality", 0.0))
+        if not values:
+            points = ctx.get("points", [])
+            if points:
+                seed = max(
+                    points,
+                    key=lambda item: float(item.get("conf", 0.0)) + float(item.get("x", 0.0)) / 105.0 * 0.25,
+                )
+                x = float(seed["x"])
+                y = float(seed["y"])
+                dist = math.hypot(105.0 - x, 34.0 - y)
+                angle = _shot_angle(x, y)
+                values = [{
+                    "ts": float(seed["ts"]),
+                    "x": x,
+                    "y": y,
+                    "dist": dist,
+                    "angle": angle,
+                    "conf": float(seed.get("conf", 0.0)),
+                    "vx": 0.0,
+                    "vy": 0.0,
+                    "value": _shot_value(dist, angle),
+                }]
+                ctx["notes"].append("suggest_seed")
         moments: List[Moment] = []
         for item in values:
             x = float(item["x"])
             y = float(item["y"])
             dist = float(item.get("dist", 0.0))
-            forward = 6.0 if x >= 86.0 else 10.0 if x >= 78.0 else 14.0
-            pull = 0.55 if abs(y - 34.0) > 12.0 else 0.4
-            sx = _clip(x + forward, 0.0, 104.0)
-            sy = _clip(y + (34.0 - y) * pull, 0.0, 68.0)
-            angle = _shot_angle(x, y)
+            angle = float(item.get("angle", _shot_angle(x, y)))
+            base_value = float(item.get("value", _shot_value(dist, angle)))
+            vx = float(item.get("vx", 0.0))
+            vy = float(item.get("vy", 0.0))
+            speed = math.hypot(vx, vy)
+            if speed < 0.2:
+                hx, hy = 1.0, (34.0 - y) * 0.03
+            else:
+                hx = vx / speed
+                hy = vy / speed
+            hx = hx * 0.45 + 0.55
+            norm = max(1e-6, math.hypot(hx, hy))
+            hx /= norm
+            hy /= norm
+            px = -hy
+            py = hx
+            forward_base = 5.0 if x >= 88.0 else 8.0 if x >= 78.0 else 11.0 if x >= 68.0 else 14.0
+            center_pull = (34.0 - y) * 0.22
+            best = {
+                "x": x,
+                "y": y,
+                "value": base_value,
+                "objective": base_value,
+            }
+            for forward in [max(2.0, forward_base - 4.0), max(3.0, forward_base - 1.0), forward_base + 2.0]:
+                for lateral in [-6.0, -3.0, 0.0, 3.0, 6.0]:
+                    sx = _clip(x + hx * forward + px * lateral, 0.0, 104.0)
+                    sy = _clip(y + hy * forward + py * lateral + center_pull * 0.35, 0.0, 68.0)
+                    s_dist = math.hypot(105.0 - sx, 34.0 - sy)
+                    s_angle = _shot_angle(sx, sy)
+                    s_value = _shot_value(s_dist, s_angle)
+                    move_cost = math.hypot(sx - x, sy - y)
+                    central_bonus = 0.04 * (1.0 - min(1.0, abs(sy - 34.0) / 34.0))
+                    objective = s_value + central_bonus - move_cost * 0.005
+                    if objective > float(best["objective"]):
+                        best = {
+                            "x": sx,
+                            "y": sy,
+                            "value": s_value,
+                            "objective": objective,
+                        }
+            sx = float(best["x"])
+            sy = float(best["y"])
+            best_value = float(best["value"])
+            gain = (best_value - base_value) * 28.0
+            gain = round(gain, 1)
             lane = _lane(x)
             zone = _zone(y)
-            if dist < 18.0:
-                label = "유효 슈팅 찬스"
-            elif dist < 30.0:
-                label = "박스 진입"
-            elif dist < 45.0:
-                label = "공격 전개"
-            else:
-                label = "빌드업 진행"
-            note = f"{lane} · {zone} · 거리 {dist:.1f}m · 각도 {angle:.0f}°"
+            speed = math.hypot(vx, vy)
+            label = _moment_label(x, y, dist, angle, vx, vy)
+            tempo_note = _tempo_note(x, y, vx, vy)
+            note = (
+                f"{lane} · {zone} · 거리 {dist:.1f}m · 각도 {angle:.0f}° · "
+                f"속도 {speed:.1f}m/s · {tempo_note} · 신뢰도 {float(item.get('conf', 0.0)) * 100:.0f}%"
+            )
             overlay = None
             if clip is not None:
                 ax, ay = _pitch_px((x, y), inv, clip)
@@ -551,7 +833,7 @@ class Suggest:
                     label=label,
                     actual={"x": x, "y": y},
                     suggest={"x": sx, "y": sy},
-                    delta=float(item["delta"]),
+                    delta=gain,
                     note=note,
                     conf=float(item["conf"]),
                     overlay=overlay,
@@ -559,7 +841,7 @@ class Suggest:
             )
         ctx["moments"] = moments
         ctx["notes"].append(f"suggest_{len(moments)}")
-        ctx["mode"] = "basic"
+        ctx["mode"] = "refined"
         return ctx
 
 class Heat:

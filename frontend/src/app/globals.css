@@ -68,10 +68,11 @@ body {
   position: sticky;
   top: 0;
   z-index: 5;
-  background: var(--kl-light);
-  padding: 16px 0 8px;
-  border-bottom: 1px solid rgba(148, 163, 184, 0.2);
-  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.03);
+  background: rgba(241, 245, 249, 0.96);
+  padding: 14px 0 4px;
+  border-bottom: none;
+  box-shadow: none;
+  backdrop-filter: blur(6px);
 }
 
 .content-scroll {
@@ -81,6 +82,12 @@ body {
   scrollbar-width: none;
   min-height: 0;
   overscroll-behavior: contain;
+  scroll-behavior: smooth;
+}
+
+.content-scroll > * {
+  animation: fadeIn 0.22s ease-out both;
+  transform: translateZ(0);
 }
 
 .content-scroll::-webkit-scrollbar {
@@ -294,7 +301,8 @@ body {
 @media (prefers-reduced-motion: reduce) {
   .fade-in,
   .animate-fade-in,
-  .hero-section {
+  .hero-section,
+  .content-scroll > * {
     animation: none;
   }
 }
@@ -470,19 +478,19 @@ body {
 /* 탭 */
 .tabs {
   display: flex;
-  gap: 4px;
-  margin-bottom: 12px;
-  border-bottom: 1px solid var(--kl-border);
-  padding-bottom: 6px;
+  gap: 6px;
+  margin-bottom: 4px;
+  border-bottom: none;
+  padding-bottom: 0;
 }
 
 .tab {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  padding: 10px 16px;
+  padding: 10px 16px 12px;
   font-size: 14px;
-  font-weight: 500;
+  font-weight: 600;
   color: var(--kl-gray);
   background: transparent;
   border: none;
@@ -490,18 +498,38 @@ body {
   text-align: center;
   word-spacing: -0.12em;
   letter-spacing: -0.01em;
-  border-bottom: 2px solid transparent;
-  margin-bottom: -1px;
-  transition: all 0.15s;
+  position: relative;
+  transition: color 0.18s ease, transform 0.18s ease, opacity 0.18s ease;
+  will-change: transform;
+}
+
+.tab::after {
+  content: "";
+  position: absolute;
+  left: 16px;
+  right: 16px;
+  bottom: 4px;
+  height: 2px;
+  border-radius: 999px;
+  background: var(--kl-red);
+  transform: scaleX(0);
+  transform-origin: center;
+  opacity: 0.45;
+  transition: transform 0.18s ease, opacity 0.18s ease;
 }
 
 .tab:hover {
-  color: var(--kl-white);
+  color: #0f172a;
+  transform: translateY(-1px);
 }
 
 .tab.active {
   color: var(--kl-red);
-  border-bottom-color: var(--kl-red);
+}
+
+.tab.active::after {
+  transform: scaleX(1);
+  opacity: 1;
 }
 
 /* 통계 그리드 */
@@ -711,6 +739,7 @@ body {
   display: flex;
   align-items: center;
   gap: 16px;
+  padding-top: 2px;
   margin-bottom: 14px;
   padding-left: 0;
 }

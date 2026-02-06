@@ -38,36 +38,68 @@ export default function Pitch3D({ moment, width = 500, height = 350 }: Pitch3DPr
     const dx = suggestX - actualX;
     const dy = suggestY - actualY;
     const moveDistance = Math.hypot(dx, dy);
-    const dirScale = moveDistance > 0.01 ? 1 / moveDistance : 0;
-    const dirX = moveDistance > 0.01 ? dx * dirScale : 1;
-    const dirY = moveDistance > 0.01 ? dy * dirScale : 0;
+    const hasMovement = moveDistance > 0.35;
+    const dirScale = hasMovement ? 1 / moveDistance : 0;
+    const dirX = hasMovement ? dx * dirScale : 1;
+    const dirY = hasMovement ? dy * dirScale : 0;
     const perpX = -dirY;
     const perpY = dirX;
-    const midX = (actualX + suggestX) / 2 + perpX * 1.4;
-    const midY = (actualY + suggestY) / 2 + perpY * 1.4;
-    const pathPad = 2.2;
-    const minLine = 8;
-    const drawLen = moveDistance > 0.01 ? Math.max(moveDistance, minLine) : minLine;
-    const lineEndX = moveDistance >= minLine ? suggestX : clamp(actualX + dirX * drawLen, 0, 105);
-    const lineEndY = moveDistance >= minLine ? suggestY : clamp(actualY + dirY * drawLen, 0, 68);
-    const startX = clamp(actualX + dirX * pathPad, 0, 105);
-    const startY = clamp(actualY + dirY * pathPad, 0, 68);
-    const endX = clamp(lineEndX - dirX * pathPad, 0, 105);
-    const endY = clamp(lineEndY - dirY * pathPad, 0, 68);
-    const labelClampX = (val: number) => clamp(val, 4, 101);
-    const labelClampY = (val: number) => clamp(val, 4, 64);
-    const labelOffset = 3.2;
-    const actualLabelX = labelClampX(actualX - dirX * 2.6 + perpX * labelOffset);
-    const actualLabelY = labelClampY(actualY - dirY * 2.6 + perpY * labelOffset);
-    const aiLabelX = labelClampX(suggestX + dirX * 2.6 + perpX * labelOffset);
-    const aiLabelY = labelClampY(suggestY + dirY * 2.6 + perpY * labelOffset);
-    const anchorFromX = (x: number, fallback: 'start' | 'end') => {
-        if (x < 18) return 'start';
-        if (x > 90) return 'end';
-        return fallback;
+    const pathPad = hasMovement ? clamp(moveDistance * 0.08, 0.28, 0.95) : 0;
+    const startX = hasMovement ? clamp(actualX + dirX * pathPad, 0, 105) : actualX;
+    const startY = hasMovement ? clamp(actualY + dirY * pathPad, 0, 68) : actualY;
+    const endX = hasMovement ? clamp(suggestX - dirX * pathPad, 0, 105) : suggestX;
+    const endY = hasMovement ? clamp(suggestY - dirY * pathPad, 0, 68) : suggestY;
+    const nearTop = Math.min(actualY, suggestY) < 11;
+    const nearBottom = Math.max(actualY, suggestY) > 57;
+    const curveDirection = nearTop ? 1 : nearBottom ? -1 : (dy >= 0 ? -1 : 1);
+    const baseCurve = clamp(moveDistance * 0.14, 0.7, 3.2);
+    const curveStrength = hasMovement ? (moveDistance < 2.2 ? baseCurve * 0.55 : baseCurve) : 0;
+    const ctrlX = clamp((startX + endX) / 2 + perpX * curveStrength * curveDirection, 4, 101);
+    const ctrlY = clamp((startY + endY) / 2 + perpY * curveStrength * curveDirection, 4, 64);
+    const movementPath = `M ${startX} ${startY} Q ${ctrlX} ${ctrlY} ${endX} ${endY}`;
+    const showArrow = moveDistance > 2.3;
+
+    const labelClampX = (val: number) => clamp(val, 6, 99);
+    const labelClampY = (val: number) => clamp(val, 6, 62);
+    const labelOffset = moveDistance < 7 ? 4.8 : 4.1;
+    let actualLabelX = actualX - dirX * 2.3 - perpX * labelOffset;
+    let actualLabelY = actualY - dirY * 2.3 - perpY * labelOffset;
+    let aiLabelX = suggestX + dirX * 2.3 + perpX * labelOffset;
+    let aiLabelY = suggestY + dirY * 2.3 + perpY * labelOffset;
+
+    if (moveDistance < 5.4) {
+        actualLabelX -= perpX * 1.4 + dirX * 0.8;
+        actualLabelY -= perpY * 1.4 + dirY * 0.8;
+        aiLabelX += perpX * 1.4 + dirX * 0.8;
+        aiLabelY += perpY * 1.4 + dirY * 0.8;
+    }
+
+    if (!hasMovement) {
+        actualLabelX = actualX - 4.2;
+        actualLabelY = actualY - 4.8;
+        aiLabelX = suggestX + 4.2;
+        aiLabelY = suggestY - 4.8;
+    }
+
+    actualLabelX = labelClampX(actualLabelX);
+    actualLabelY = labelClampY(actualLabelY);
+    aiLabelX = labelClampX(aiLabelX);
+    aiLabelY = labelClampY(aiLabelY);
+
+    const projectPoint = (fromX: number, fromY: number, toX: number, toY: number, dist: number) => {
+        const vx = toX - fromX;
+        const vy = toY - fromY;
+        const len = Math.hypot(vx, vy);
+        if (!Number.isFinite(len) || len < 0.001) return { x: fromX, y: fromY };
+        return {
+            x: fromX + (vx / len) * dist,
+            y: fromY + (vy / len) * dist,
+        };
     };
-    const actualAnchor = anchorFromX(actualLabelX, dirX >= 0 ? 'end' : 'start');
-    const aiAnchor = anchorFromX(aiLabelX, dirX >= 0 ? 'start' : 'end');
+    const actualLinkStart = projectPoint(actualX, actualY, actualLabelX, actualLabelY, 2.25);
+    const actualLinkEnd = projectPoint(actualLabelX, actualLabelY, actualX, actualY, 2.6);
+    const aiLinkStart = projectPoint(suggestX, suggestY, aiLabelX, aiLabelY, 2.9);
+    const aiLinkEnd = projectPoint(aiLabelX, aiLabelY, suggestX, suggestY, 2.3);
 
     const penaltyBox = { width: 16.5, height: 40.32 };
     const goalBox = { width: 5.5, height: 18.32 };
@@ -83,26 +115,44 @@ export default function Pitch3D({ moment, width = 500, height = 350 }: Pitch3DPr
             >
                 <defs>
                     <linearGradient id={`grass-${svgId}`} x1="0" x2="0" y1="0" y2="1">
-                        <stop offset="0%" stopColor="#eef2f7" />
-                        <stop offset="100%" stopColor="#e2e8f0" />
+                        <stop offset="0%" stopColor="#f7fbff" />
+                        <stop offset="100%" stopColor="#e8f1fb" />
                     </linearGradient>
+                    <pattern id={`stripe-${svgId}`} width="12" height="68" patternUnits="userSpaceOnUse">
+                        <rect x="0" y="0" width="6" height="68" className={styles.pitchStripe} />
+                    </pattern>
                     <pattern id={`grid-${svgId}`} width="10" height="10" patternUnits="userSpaceOnUse">
                         <path d="M 10 0 L 0 0 0 10" className={styles.pitchGrid} />
                     </pattern>
+                    <linearGradient
+                        id={`path-gradient-${svgId}`}
+                        x1={startX}
+                        y1={startY}
+                        x2={endX}
+                        y2={endY}
+                        gradientUnits="userSpaceOnUse"
+                    >
+                        <stop offset="0%" stopColor="#f97316" />
+                        <stop offset="100%" stopColor="#f59e0b" />
+                    </linearGradient>
+                    <filter id={`path-glow-${svgId}`} x="-30%" y="-30%" width="160%" height="160%">
+                        <feDropShadow dx="0" dy="0.2" stdDeviation="0.52" floodColor="#f59e0b" floodOpacity="0.32" />
+                    </filter>
                     <marker
                         id={`arrow-${svgId}`}
-                        markerWidth="6"
-                        markerHeight="6"
-                        refX="5.2"
-                        refY="3"
+                        markerWidth="6.6"
+                        markerHeight="6.6"
+                        refX="6.05"
+                        refY="3.3"
                         orient="auto"
                         markerUnits="userSpaceOnUse"
                     >
-                        <path d="M0,0 L6,3 L0,6 Z" className={styles.pathArrow} />
+                        <path d="M0,0 L6.6,3.3 L0,6.6 L1.15,3.3 Z" className={styles.pathArrow} />
                     </marker>
                 </defs>
 
                 <rect x="0" y="0" width="105" height="68" fill={`url(#grass-${svgId})`} />
+                <rect x="0" y="0" width="105" height="68" fill={`url(#stripe-${svgId})`} />
                 <rect x="0" y="0" width="105" height="68" fill={`url(#grid-${svgId})`} />
 
                 <rect x="0.5" y="0.5" width="104" height="67" className={styles.pitchLine} />
@@ -117,33 +167,45 @@ export default function Pitch3D({ moment, width = 500, height = 350 }: Pitch3DPr
                 <circle cx="11" cy="34" r="0.6" className={styles.pitchSpot} />
                 <circle cx="94" cy="34" r="0.6" className={styles.pitchSpot} />
 
-                {moveDistance > 0.2 && (
-                    <line
-                        x1={startX}
-                        y1={startY}
-                        x2={endX}
-                        y2={endY}
-                        className={styles.pathLine}
-                        markerEnd={`url(#arrow-${svgId})`}
-                    />
+                {hasMovement && (
+                    <>
+                        <path d={movementPath} className={styles.pathUnderlay} />
+                        <path
+                            d={movementPath}
+                            className={styles.pathLine}
+                            style={{ stroke: `url(#path-gradient-${svgId})` }}
+                            filter={`url(#path-glow-${svgId})`}
+                            markerEnd={showArrow ? `url(#arrow-${svgId})` : undefined}
+                        />
+                    </>
                 )}
 
-                <circle cx={actualX} cy={actualY} r="1.8" className={styles.markerActual} />
-                <circle cx={suggestX} cy={suggestY} r="2.6" className={styles.markerTarget} />
-                <circle cx={suggestX} cy={suggestY} r="0.7" className={styles.markerTargetCore} />
+                <line x1={actualLinkStart.x} y1={actualLinkStart.y} x2={actualLinkEnd.x} y2={actualLinkEnd.y} className={styles.markerLinkActual} />
+                <line x1={aiLinkStart.x} y1={aiLinkStart.y} x2={aiLinkEnd.x} y2={aiLinkEnd.y} className={styles.markerLinkAi} />
 
-                <text x={actualLabelX} y={actualLabelY} textAnchor={actualAnchor} className={styles.markerLabel}>
-                    실제
-                </text>
-                <text x={aiLabelX} y={aiLabelY} textAnchor={aiAnchor} className={styles.markerLabelAi}>
-                    AI
-                </text>
+                <circle cx={actualX} cy={actualY} r="3.35" className={styles.markerActualHalo} />
+                <circle cx={actualX} cy={actualY} r="2.15" className={styles.markerActualRing} />
+                <circle cx={actualX} cy={actualY} r="1.55" className={styles.markerActual} />
+                <circle cx={actualX} cy={actualY} r="0.45" className={styles.markerActualCore} />
 
-                {moveDistance > 2 && (
-                    <text x={midX} y={labelClampY(midY - 1)} textAnchor="middle" className={styles.pathLabel}>
-                        {Number.isFinite(moveDistance) ? `${moveDistance.toFixed(1)}m` : ''}
+                <circle cx={suggestX} cy={suggestY} r="4.7" className={styles.markerTargetOrbit} />
+                <circle cx={suggestX} cy={suggestY} r="3.95" className={styles.markerTargetAura} />
+                <circle cx={suggestX} cy={suggestY} r="2.65" className={styles.markerTarget} />
+                <circle cx={suggestX} cy={suggestY} r="1.25" className={styles.markerTargetInner} />
+                <circle cx={suggestX} cy={suggestY} r="0.55" className={styles.markerTargetCore} />
+
+                <g transform={`translate(${actualLabelX} ${actualLabelY})`}>
+                    <rect x="-4.7" y="-2.1" width="9.4" height="4.2" rx="2.1" className={styles.markerLabelActualBg} />
+                    <text x="0" y="0.05" className={styles.markerLabelActual}>
+                        실제
                     </text>
-                )}
+                </g>
+                <g transform={`translate(${aiLabelX} ${aiLabelY})`}>
+                    <rect x="-3.6" y="-2.1" width="7.2" height="4.2" rx="2.1" className={styles.markerLabelAiBg} />
+                    <text x="0" y="0.05" className={styles.markerLabelAi}>
+                        AI
+                    </text>
+                </g>
             </svg>
         </div>
     );

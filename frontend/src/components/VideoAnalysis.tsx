@@ -71,6 +71,24 @@ const moveHint = (moment: VideoMoment) => {
   return `${forward} · ${lateral}`;
 };
 
+const parseNote = (note: string) => {
+  const parts = note.split('·').map((part) => part.trim());
+  const lane = parts[0] || '중앙 지역';
+  const zone = parts[1] || '중앙';
+  const dist = parts.find((part) => part.startsWith('거리'))?.replace('거리', '').trim() || '--';
+  const angle = parts.find((part) => part.includes('각도'))?.replace('각도', '').trim() || '--';
+  const speed = parts.find((part) => part.startsWith('속도'))?.replace('속도', '').trim() || '--';
+  const tempo = parts.find((part) => part.includes('템포')) || '';
+  const flow = parts.find(
+    (part) =>
+      part.includes('침투') ||
+      part.includes('전진') ||
+      part.includes('횡전개') ||
+      part.includes('리사이클')
+  ) || '';
+  return { lane, zone, dist, angle, speed, tempo, flow };
+};
+
 type HeatCell = {
   row: number;
   col: number;
@@ -159,6 +177,11 @@ export default function VideoAnalysis() {
   const [manualTs, setManualTs] = useState<number | null>(null);
   const [flashOn, setFlashOn] = useState(false);
   const flashRef = useRef<number | null>(null);
+  const leftColRef = useRef<HTMLDivElement | null>(null);
+  const timelineListRef = useRef<HTMLDivElement | null>(null);
+  const timelineItemRefs = useRef<Map<number, HTMLButtonElement>>(new Map());
+  const [panelHeight, setPanelHeight] = useState(0);
+  const [isWideLayout, setIsWideLayout] = useState(false);
 
   useEffect(() => {
     return () => {
@@ -166,6 +189,28 @@ export default function VideoAnalysis() {
         window.clearTimeout(flashRef.current);
       }
     };
+  }, []);
+
+  useEffect(() => {
+    const syncLayoutMode = () => {
+      setIsWideLayout(window.innerWidth > 900);
+    };
+    syncLayoutMode();
+    window.addEventListener('resize', syncLayoutMode);
+    return () => window.removeEventListener('resize', syncLayoutMode);
+  }, []);
+
+  useEffect(() => {
+    const target = leftColRef.current;
+    if (!target || typeof ResizeObserver === 'undefined') return;
+    const observer = new ResizeObserver((entries) => {
+      const entry = entries[0];
+      if (!entry) return;
+      const next = Math.max(0, Math.round(entry.contentRect.height));
+      setPanelHeight((prev) => (Math.abs(prev - next) > 1 ? next : prev));
+    });
+    observer.observe(target);
+    return () => observer.disconnect();
   }, []);
   const formatJobError = (message: string) => {
     const lower = message.toLowerCase();
@@ -271,6 +316,7 @@ export default function VideoAnalysis() {
     }
     return lines;
   }, [moments]);
+  const timelineMoments = useMemo(() => [...moments].sort((a, b) => a.ts - b.ts), [moments]);
 
   const run = async () => {
     if (!url.trim() && !file) {
@@ -470,6 +516,25 @@ export default function VideoAnalysis() {
     const found = moments.find((item) => Math.abs(item.ts - activeTs) < 0.01);
     return found || null;
   }, [activeTs, moments]);
+
+  useEffect(() => {
+    if (activeTs === null) return;
+    const listEl = timelineListRef.current;
+    const itemEl = timelineItemRefs.current.get(activeTs);
+    if (!listEl || !itemEl) return;
+    const listRect = listEl.getBoundingClientRect();
+    const itemRect = itemEl.getBoundingClientRect();
+    const pad = 10;
+    const outTop = itemRect.top < listRect.top + pad;
+    const outBottom = itemRect.bottom > listRect.bottom - pad;
+    if (outTop || outBottom) {
+      itemEl.scrollIntoView({
+        block: 'nearest',
+        inline: 'nearest',
+        behavior: 'smooth',
+      });
+    }
+  }, [activeTs]);
   const tacticLine = useMemo(() => {
     if (!activeMoment) return '';
     const x = activeMoment.actual.x;
@@ -554,23 +619,46 @@ export default function VideoAnalysis() {
       });
     }
 
+    const roundRect = (
+      x: number,
+      y: number,
+      w: number,
+      h: number,
+      radius: number
+    ) => {
+      const r = Math.min(radius, w / 2, h / 2);
+      ctx.beginPath();
+      ctx.moveTo(x + r, y);
+      ctx.lineTo(x + w - r, y);
+      ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+      ctx.lineTo(x + w, y + h - r);
+      ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+      ctx.lineTo(x + r, y + h);
+      ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+      ctx.lineTo(x, y + r);
+      ctx.quadraticCurveTo(x, y, x + r, y);
+      ctx.closePath();
+    };
+
     if (overlayVisible && showLines && actual && suggest && goal) {
       ctx.lineCap = 'round';
-      ctx.lineWidth = 3;
-      ctx.strokeStyle = '#ef4444';
+      ctx.lineJoin = 'round';
+      ctx.lineWidth = 3.2;
+      ctx.strokeStyle = 'rgba(239, 68, 68, 0.95)';
       ctx.beginPath();
       ctx.moveTo(actual.x, actual.y);
       ctx.lineTo(goal.x, goal.y);
       ctx.stroke();
 
-      ctx.strokeStyle = '#16a34a';
+      ctx.strokeStyle = 'rgba(37, 99, 235, 0.96)';
       ctx.beginPath();
       ctx.moveTo(suggest.x, suggest.y);
       ctx.lineTo(goal.x, goal.y);
       ctx.stroke();
 
-      ctx.strokeStyle = '#f59e0b';
-      ctx.setLineDash([6, 4]);
+      ctx.strokeStyle = 'rgba(245, 158, 11, 0.95)';
+      ctx.lineWidth = 2.4;
+      ctx.setLineDash([7, 4]);
       ctx.beginPath();
       ctx.moveTo(actual.x, actual.y);
       ctx.lineTo(suggest.x, suggest.y);
@@ -578,28 +666,123 @@ export default function VideoAnalysis() {
       ctx.setLineDash([]);
     }
 
-    const drawPoint = (pt: { x: number; y: number }, color: string) => {
-      ctx.fillStyle = color;
+    const drawActualPoint = (pt: { x: number; y: number }) => {
+      ctx.fillStyle = 'rgba(239, 68, 68, 0.24)';
       ctx.beginPath();
-      ctx.arc(pt.x, pt.y, 5, 0, Math.PI * 2);
+      ctx.arc(pt.x, pt.y, 11, 0, Math.PI * 2);
       ctx.fill();
-      ctx.strokeStyle = '#ffffff';
+      ctx.fillStyle = '#ffffff';
+      ctx.strokeStyle = '#ef4444';
       ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(pt.x, pt.y, 7, 0, Math.PI * 2);
+      ctx.fill();
       ctx.stroke();
-    };
-    if (overlayVisible && actual && suggest) {
-      drawPoint(actual, '#ef4444');
-      drawPoint(suggest, '#16a34a');
-
-      ctx.fillStyle = '#0f172a';
-      ctx.font = '12px IBM Plex Sans KR, sans-serif';
-      if (overlay) {
-        ctx.fillText(`${overlay.angle.toFixed(0)}°`, actual.x + 8, actual.y - 8);
-      }
       ctx.fillStyle = '#ef4444';
-      ctx.fillText('실제', actual.x + 8, actual.y + 14);
-      ctx.fillStyle = '#16a34a';
-      ctx.fillText('추천', suggest.x + 8, suggest.y + 14);
+      ctx.beginPath();
+      ctx.arc(pt.x, pt.y, 4.2, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = '#ffffff';
+      ctx.beginPath();
+      ctx.arc(pt.x, pt.y, 1.2, 0, Math.PI * 2);
+      ctx.fill();
+    };
+
+    const drawSuggestPoint = (pt: { x: number; y: number }) => {
+      ctx.strokeStyle = 'rgba(37, 99, 235, 0.35)';
+      ctx.lineWidth = 1.2;
+      ctx.setLineDash([2, 2]);
+      ctx.beginPath();
+      ctx.arc(pt.x, pt.y, 12, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.fillStyle = 'rgba(37, 99, 235, 0.24)';
+      ctx.beginPath();
+      ctx.arc(pt.x, pt.y, 10, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = '#ffffff';
+      ctx.strokeStyle = '#2563eb';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(pt.x, pt.y, 7, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+      ctx.strokeStyle = '#2563eb';
+      ctx.lineWidth = 1.6;
+      ctx.beginPath();
+      ctx.arc(pt.x, pt.y, 3.9, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.fillStyle = '#2563eb';
+      ctx.beginPath();
+      ctx.arc(pt.x, pt.y, 1.5, 0, Math.PI * 2);
+      ctx.fill();
+    };
+
+    const drawTag = (
+      x: number,
+      y: number,
+      text: string,
+      textColor: string,
+      strokeColor: string,
+      marker: { x: number; y: number }
+    ) => {
+      ctx.font = '700 12px IBM Plex Sans KR, sans-serif';
+      const w = Math.max(44, ctx.measureText(text).width + 18);
+      const h = 24;
+      const baseX = x + 10 + w > rect.width ? x - w - 10 : x + 10;
+      const baseY = y - h - 10 < 6 ? y + 10 : y - h - 10;
+      const tx = Math.max(6, Math.min(rect.width - w - 6, baseX));
+      const ty = Math.max(6, Math.min(rect.height - h - 6, baseY));
+      const anchorX = tx + (x > rect.width - w - 24 ? w : 0);
+      const anchorY = ty + h / 2;
+      ctx.strokeStyle = strokeColor;
+      ctx.lineWidth = 1.2;
+      ctx.beginPath();
+      ctx.moveTo(marker.x, marker.y);
+      ctx.lineTo(anchorX, anchorY);
+      ctx.stroke();
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.96)';
+      roundRect(tx, ty, w, h, 12);
+      ctx.fill();
+      ctx.strokeStyle = strokeColor;
+      ctx.lineWidth = 1;
+      ctx.stroke();
+      ctx.fillStyle = textColor;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(text, tx + w / 2, ty + h / 2 + 0.5);
+      ctx.textAlign = 'left';
+      ctx.textBaseline = 'alphabetic';
+    };
+
+    if (overlayVisible && actual && suggest) {
+      drawActualPoint(actual);
+      drawSuggestPoint(suggest);
+      if (goal) {
+        ctx.fillStyle = 'rgba(15, 23, 42, 0.95)';
+        ctx.beginPath();
+        ctx.arc(goal.x, goal.y, 2.2, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      drawTag(actual.x, actual.y, '실제 위치', '#c81e3a', '#fecaca', actual);
+      drawTag(suggest.x, suggest.y, 'AI 제안', '#1d4ed8', '#bfdbfe', suggest);
+      if (overlay) {
+        ctx.fillStyle = '#0f172a';
+        ctx.font = '700 12px IBM Plex Sans KR, sans-serif';
+        const angleText = `${overlay.angle.toFixed(0)}°`;
+        const boxW = ctx.measureText(angleText).width + 14;
+        const ax = Math.max(8, Math.min(rect.width - boxW - 8, actual.x - boxW / 2));
+        const ay = Math.max(8, actual.y - 34);
+        ctx.fillStyle = 'rgba(15, 23, 42, 0.82)';
+        roundRect(ax, ay, boxW, 20, 10);
+        ctx.fill();
+        ctx.fillStyle = '#e2e8f0';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(angleText, ax + boxW / 2, ay + 10.5);
+        ctx.textAlign = 'left';
+        ctx.textBaseline = 'alphabetic';
+      }
     }
   }, [
     activeMoment,
@@ -645,7 +828,7 @@ export default function VideoAnalysis() {
       <div className={styles.head}>
         <div>
           <div className={styles.title}>영상 분석</div>
-          <div className={styles.sub}>유튜브 링크를 붙여넣으면 장면별 분석을 표시합니다.</div>
+          <div className={styles.sub}>장면별 실제 위치와 AI 제안을 프레임 단위로 비교합니다.</div>
         </div>
         <div className={styles.status}>
           <span className={styles.statusBadge}>
@@ -703,7 +886,7 @@ export default function VideoAnalysis() {
             checked={showSuggestHeat}
             onChange={(event) => setShowSuggestHeat(event.target.checked)}
           />
-          디버전시
+          AI 히트맵
         </label>
         <label className={styles.controlItem}>
           <input
@@ -749,7 +932,7 @@ export default function VideoAnalysis() {
           </select>
         </label>
         <label className={styles.controlItem}>
-          디버전시 색
+          AI 히트맵 색
           <select
             value={suggestTone}
             onChange={(event) => setSuggestTone(event.target.value)}
@@ -765,38 +948,56 @@ export default function VideoAnalysis() {
       {jobError && <div className={styles.error}>{jobError}</div>}
 
       <div className={styles.main}>
-        <div className={styles.player}>
-          {localSrc ? (
-            <>
-              <video
-                ref={videoRef}
-                className={styles.playerFrame}
-                src={localSrc}
-                controls
-              />
-              <canvas ref={canvasRef} className={styles.overlay} />
-              {overlayVisible && tacticLine && (
-                <div className={styles.tacticCard} title={tacticLine}>
-                  {tacticLine}
+        <div className={styles.leftCol} ref={leftColRef}>
+          <div className={styles.player}>
+            {localSrc ? (
+              <>
+                <video
+                  ref={videoRef}
+                  className={styles.playerFrame}
+                  src={localSrc}
+                  controls
+                />
+                <canvas ref={canvasRef} className={styles.overlay} />
+                <div className={styles.overlayLegend}>
+                  <span className={styles.legendItem}><span className={`${styles.legendDot} ${styles.legendDotActual}`} />실제 위치</span>
+                  <span className={styles.legendItem}><span className={`${styles.legendDot} ${styles.legendDotSuggest}`} />AI 제안</span>
+                  <span className={styles.legendItem}><span className={styles.legendDash} />재배치 경로</span>
                 </div>
-              )}
-            </>
-          ) : embedSrc ? (
-            <>
-              <div ref={playerHostRef} className={styles.playerFrame} />
-              <canvas ref={canvasRef} className={styles.overlay} />
-              {overlayVisible && tacticLine && (
-                <div className={styles.tacticCard} title={tacticLine}>
-                  {tacticLine}
+                {overlayVisible && tacticLine && (
+                  <div className={styles.tacticCard} title={tacticLine}>
+                    {tacticLine}
+                  </div>
+                )}
+              </>
+            ) : embedSrc ? (
+              <>
+                <div ref={playerHostRef} className={styles.playerFrame} />
+                <canvas ref={canvasRef} className={styles.overlay} />
+                <div className={styles.overlayLegend}>
+                  <span className={styles.legendItem}><span className={`${styles.legendDot} ${styles.legendDotActual}`} />실제 위치</span>
+                  <span className={styles.legendItem}><span className={`${styles.legendDot} ${styles.legendDotSuggest}`} />AI 제안</span>
+                  <span className={styles.legendItem}><span className={styles.legendDash} />재배치 경로</span>
                 </div>
-              )}
-            </>
-          ) : (
-            <div className={styles.placeholder}>링크를 입력하면 영상이 표시됩니다.</div>
-          )}
+                {overlayVisible && tacticLine && (
+                  <div className={styles.tacticCard} title={tacticLine}>
+                    {tacticLine}
+                  </div>
+                )}
+              </>
+            ) : (
+              <div className={styles.placeholder}>링크를 입력하면 영상이 표시됩니다.</div>
+            )}
+          </div>
+          <div className={styles.license}>
+            영상 저작권은 각 권리자에게 있으며, 본 서비스는 YouTube 이용약관을 준수합니다. 분석 결과는 참고용입니다.
+          </div>
         </div>
 
-        <div className={styles.panel}>
+        <div
+          className={styles.panel}
+          style={isWideLayout && panelHeight > 0 ? { height: panelHeight } : undefined}
+        >
           <div className={styles.panelTitle}>타임라인</div>
           {summary.length > 0 && (
             <div className={styles.summary}>
@@ -814,18 +1015,33 @@ export default function VideoAnalysis() {
               {working ? '분석 중입니다. 잠시만 기다려주세요.' : '분석 결과가 없습니다. 링크를 확인해주세요.'}
             </div>
           ) : (
-            <div className={styles.list}>
-              {moments.map((item) => {
+            <div className={styles.list} ref={timelineListRef}>
+              {timelineMoments.map((item) => {
                 const delta = Number.isFinite(item.delta) ? item.delta : 0;
+                const meta = parseNote(item.note || '');
                 return (
                   <button
                     key={`${item.ts}-${item.label}`}
+                    ref={(element) => {
+                      if (element) timelineItemRefs.current.set(item.ts, element);
+                      else timelineItemRefs.current.delete(item.ts);
+                    }}
                     className={`${styles.item} ${activeTs === item.ts ? styles.itemActive : ''}`}
                     onClick={() => handlePick(item.ts)}
                   >
                     <div className={styles.itemTime}>{fmtTime(item.ts)}</div>
                     <div className={styles.itemMain}>
                       <div className={styles.itemTitle}>{item.label || '장면'}</div>
+                      <div className={styles.itemMeta}>
+                        <span className={styles.itemChip}>{meta.lane}</span>
+                        <span className={styles.itemChip}>{meta.zone}</span>
+                        <span className={styles.itemChip}>{meta.dist}</span>
+                        <span className={styles.itemChip}>{meta.angle}</span>
+                        {meta.speed !== '--' && <span className={styles.itemChip}>{meta.speed}</span>}
+                        {meta.tempo && <span className={styles.itemChip}>{meta.tempo}</span>}
+                        {meta.flow && <span className={styles.itemChip}>{meta.flow}</span>}
+                        <span className={`${styles.itemChip} ${styles.itemChipSoft}`}>신뢰 {Math.round((item.conf || 0) * 100)}%</span>
+                      </div>
                       <div className={styles.itemNote}>{item.note || '상황 설명 없음'}</div>
                       <div className={styles.itemMove}>추천 이동: {moveHint(item)}</div>
                     </div>
@@ -841,9 +1057,6 @@ export default function VideoAnalysis() {
         </div>
       </div>
 
-      <div className={styles.license}>
-        영상 저작권은 각 권리자에게 있으며, 본 서비스는 YouTube 이용약관을 준수합니다. 분석 결과는 참고용입니다.
-      </div>
     </div>
   );
 }

@@ -50,6 +50,7 @@
   align-items: center;
 }
 
+
 .controls {
   display: flex;
   gap: 14px;
@@ -140,8 +141,17 @@
 
 .main {
   display: grid;
-  grid-template-columns: minmax(360px, 1.2fr) minmax(260px, 0.8fr);
+  grid-template-columns: minmax(380px, 1.24fr) minmax(320px, 0.88fr);
   gap: 16px;
+  align-items: start;
+  grid-auto-rows: min-content;
+}
+
+.leftCol {
+  display: grid;
+  gap: 10px;
+  align-self: start;
+  contain: layout paint;
 }
 
 .player {
@@ -150,19 +160,69 @@
   overflow: hidden;
   border: 1px solid #e2e8f0;
   position: relative;
+  align-self: start;
+  height: fit-content;
 }
 
 .playerFrame {
   width: 100%;
   aspect-ratio: 16 / 9;
+  height: auto;
   border: 0;
   display: block;
+  vertical-align: top;
 }
 
 .overlay {
   position: absolute;
   inset: 0;
   pointer-events: none;
+}
+
+.overlayLegend {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  z-index: 3;
+}
+
+.legendItem {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border-radius: 999px;
+  padding: 4px 9px;
+  font-size: 11px;
+  color: #e2e8f0;
+  background: rgba(15, 23, 42, 0.68);
+  border: 1px solid rgba(255, 255, 255, 0.24);
+  backdrop-filter: blur(4px);
+}
+
+.legendDot {
+  width: 9px;
+  height: 9px;
+  border-radius: 999px;
+}
+
+.legendDotActual {
+  background: #ef4444;
+  border: 1.5px solid #ffffff;
+}
+
+.legendDotSuggest {
+  background: #2563eb;
+  border: 1.5px solid #ffffff;
+}
+
+.legendDash {
+  width: 14px;
+  height: 2px;
+  border-radius: 999px;
+  background: repeating-linear-gradient(90deg, #f59e0b 0 5px, transparent 5px 8px);
 }
 
 .tacticCard {
@@ -199,8 +259,12 @@
   border: 1px solid #e2e8f0;
   border-radius: 16px;
   padding: 12px;
-  display: grid;
+  display: flex;
+  flex-direction: column;
   gap: 10px;
+  align-self: start;
+  min-height: 0;
+  contain: layout paint;
 }
 
 .panelTitle {
@@ -218,6 +282,8 @@
   padding: 10px;
   display: grid;
   gap: 6px;
+  flex-shrink: 0;
+  min-height: 110px;
 }
 
 .summaryTitle {
@@ -244,9 +310,12 @@
 .list {
   display: grid;
   gap: 8px;
-  max-height: 420px;
+  min-height: 0;
   overflow: auto;
   padding-right: 4px;
+  scroll-behavior: smooth;
+  flex: 1;
+  overscroll-behavior: contain;
 }
 
 .item {
@@ -256,9 +325,18 @@
   border: 1px solid #e2e8f0;
   border-radius: 12px;
   padding: 10px;
-  background: #f8fafc;
+  background: linear-gradient(180deg, #ffffff 0%, #f8fbff 100%);
   text-align: left;
   cursor: pointer;
+  transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+  will-change: transform;
+  min-height: 92px;
+  contain: layout paint style;
+}
+
+.item:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 8px 16px rgba(15, 23, 42, 0.08);
 }
 
 .itemActive {
@@ -282,12 +360,42 @@
   font-size: 13px;
   font-weight: 700;
   color: #0f172a;
+  line-height: 1.2;
+  min-height: 16px;
+}
+
+.itemMeta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 5px;
+}
+
+.itemChip {
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 700;
+  color: #22456f;
+  background: #e8f1ff;
+  border: 1px solid #d4e3f8;
+}
+
+.itemChipSoft {
+  color: #334155;
+  background: #f1f5f9;
+  border-color: #dbe5f0;
 }
 
 .itemNote {
   font-size: 11px;
   color: #64748b;
-  margin-top: 2px;
+  margin-top: 4px;
+  line-height: 1.32;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 }
 
 .itemMove {
@@ -315,6 +423,11 @@
   border: 1px dashed #e2e8f0;
   border-radius: 12px;
   text-align: center;
+  min-height: 0;
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .note {
@@ -324,9 +437,10 @@
 
 .license {
   font-size: 11px;
-  color: #94a3b8;
-  border-top: 1px solid #e2e8f0;
-  padding-top: 10px;
+  color: #8ea0bb;
+  padding: 0 4px;
+  line-height: 1.35;
+  transform: translateZ(0);
 }
 
 @media (max-width: 900px) {
@@ -339,7 +453,29 @@
     grid-template-columns: 1fr;
   }
 
+  .panel {
+    min-height: auto;
+    max-height: none;
+  }
+
+  .summary {
+    min-height: auto;
+  }
+
   .list {
     max-height: 240px;
+    flex: initial;
+  }
+}
+
+@media (max-width: 600px) {
+  .form {
+    flex-wrap: wrap;
+  }
+
+  .overlayLegend {
+    top: 8px;
+    left: 8px;
+    right: 8px;
   }
 }
