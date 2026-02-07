@@ -113,7 +113,7 @@ class SetPieceAnalyzer(Analyzer):
             swings = [r.get('swing_type', 'unknown') for r in routine_group]
             clusters[label]['primary_zone'] = Counter(zones).most_common(1)[0][0]
             clusters[label]['swing_type'] = Counter(swings).most_common(1)[0][0]
-            clusters[label]['shot_rate'] = clusters[label]['shot_count'] / max(clusters[label]['count'] + 1, 1)
+            clusters[label]['shot_rate'] = clusters[label]['shot_count'] / max(clusters[label]['count'], 1)
             clusters[label]['avg_target_x'] = np.mean([r.get('first_target_x', 0) for r in routine_group])
             clusters[label]['avg_target_y'] = np.mean([r.get('first_target_y', 0) for r in routine_group])
         

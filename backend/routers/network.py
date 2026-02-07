@@ -16,8 +16,9 @@ def network(team_id: int, n_games: int = 5, n_hubs: int = 2):
         if not result:
             raise HTTPException(status_code=404, detail="이벤트 데이터가 없습니다")
         return {
-            'team_id': team_id, 'n_games_analyzed': n_games, 'hubs': result['hubs'],
-            'network_stats': {'nodes': len(result['network']['nodes']), 'edges': len(result['network']['edges'])}
+            'team_id': team_id, 'n_games_analyzed': n_games, 'hubs': result.get('hubs', []),
+            'network_stats': {'nodes': len(result.get('network', {}).get('nodes', [])),
+                              'edges': len(result.get('network', {}).get('edges', []))}
         }
     except HTTPException:
         raise
@@ -34,7 +35,7 @@ def graph(team_id: int, n_games: int = 5):
         if not result:
             raise HTTPException(status_code=404, detail="이벤트 데이터가 없습니다")
         
-        return {'team_id': team_id, 'n_games_analyzed': n_games, 'graph': result['network']}
+        return {'team_id': team_id, 'n_games_analyzed': n_games, 'graph': result.get('network', {'nodes': [], 'edges': []})}
     except HTTPException:
         raise
     except Exception as e:

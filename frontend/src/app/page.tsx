@@ -392,6 +392,7 @@ export default function Home() {
     return Math.max(-100, Math.min(100, pct));
   };
   const fmtPct = (val: number) => `${toPct(val).toFixed(1)}%`;
+  const sf = (val: number, d: number = 1) => Number.isFinite(val) ? val.toFixed(d) : (0).toFixed(d);
   const scenarios = simResult?.scenarios ?? [];
   const pickScenarioForTactic = (tactic: string) => {
     if (scenarios.length === 0) return null;
@@ -635,7 +636,7 @@ export default function Home() {
                         <div className={styles.patternStatGrid}>
                           <div>
                             <div className={`pattern-stat-value ${styles.patternHighlight}`}>
-                              {(patterns[0].shot_conversion_rate * 100).toFixed(1)}%
+                              {sf(patterns[0].shot_conversion_rate * 100)}%
                             </div>
                             <div className="pattern-stat-label">슈팅 전환율</div>
                           </div>
@@ -644,11 +645,11 @@ export default function Home() {
                             <div className="pattern-stat-label">발생 횟수</div>
                           </div>
                           <div>
-                            <div className="pattern-stat-value">{patterns[0].avg_passes.toFixed(1)}</div>
+                            <div className="pattern-stat-value">{sf(patterns[0].avg_passes)}</div>
                             <div className="pattern-stat-label">평균 패스</div>
                           </div>
                           <div>
-                            <div className="pattern-stat-value">{patterns[0].avg_duration.toFixed(0)}초</div>
+                            <div className="pattern-stat-value">{sf(patterns[0].avg_duration, 0)}초</div>
                             <div className="pattern-stat-label">평균 시간</div>
                           </div>
                         </div>
@@ -663,7 +664,7 @@ export default function Home() {
                         <div className="hub-avatar">{hubs[0].position}</div>
                         <div className="hub-info">
                           <h4>{hubs[0].player_name}</h4>
-                          <p>허브 점수 {(hubs[0].hub_score * 100).toFixed(0)} • 패스 {hubs[0].passes_made}회</p>
+                          <p>허브 점수 {sf(hubs[0].hub_score * 100, 0)} • 패스 {hubs[0].passes_made}회</p>
                         </div>
                       </div>
                     </div>
@@ -756,7 +757,7 @@ export default function Home() {
                           </div>
 
                           <p className={styles.vaepSummary}>
-                            총 팀 VAEP: <strong>{vaepData.team_total_vaep.toFixed(1)}</strong>점
+                            총 팀 VAEP: <strong>{sf(vaepData.team_total_vaep)}</strong>점
                           </p>
 
                           <div className={styles.vaepGrid}>
@@ -784,7 +785,7 @@ export default function Home() {
                                     {p.player_name}
                                   </span>
                                   <span className={styles.vaepScorePrimary}>
-                                    {p.total_vaep.toFixed(1)}
+                                    {sf(p.total_vaep)}
                                   </span>
                                 </div>
                               ))}
@@ -797,7 +798,7 @@ export default function Home() {
                                 <div key={p.player_id} className={styles.vaepItemOff}>
                                   <span className={styles.vaepPlayerName}>{p.player_name}</span>
                                   <span className={styles.vaepScoreOff}>
-                                    {p.offensive_vaep.toFixed(1)}
+                                    {sf(p.offensive_vaep)}
                                   </span>
                                 </div>
                               ))}
@@ -810,7 +811,7 @@ export default function Home() {
                                 <div key={p.player_id} className={styles.vaepItemDef}>
                                   <span className={styles.vaepPlayerName}>{p.player_name}</span>
                                   <span className={styles.vaepScoreDef}>
-                                    {p.defensive_vaep.toFixed(1)}
+                                    {sf(p.defensive_vaep)}
                                   </span>
                                 </div>
                               ))}
@@ -828,7 +829,7 @@ export default function Home() {
                   {/* 피치 시각화 섹션 */}
                   <div className={`card ${styles.patternsCard}`}>
                     <div className={`card-title ${styles.patternsTitle}`}>
-                      ⚽ 경기 상황 리플레이
+                      경기 상황 리플레이
                     </div>
 
                     {/* Phase 선택 - 버튼 스타일 */}
@@ -922,7 +923,7 @@ export default function Home() {
                           {setpieces[setpieceIndex]?.type.includes('Corner') ? '코너킥' : '프리킥'}
                         </span>
                         <span className={styles.setpieceRate}>
-                          슈팅 전환율 {(setpieces[setpieceIndex]?.shot_rate * 100).toFixed(0)}%
+                          슈팅 전환율 {sf((setpieces[setpieceIndex]?.shot_rate ?? 0) * 100, 0)}%
                         </span>
                         <span className={styles.setpieceIndex}>
                           {setpieceIndex + 1} / {setpieces.length}
@@ -1015,7 +1016,7 @@ export default function Home() {
                           <div className="hub-avatar">{hub.position}</div>
                           <div className={`hub-info ${styles.hubInfo}`}>
                             <h4>{hub.player_name}</h4>
-                            <p>{hub.main_position} • 허브 점수 {(hub.hub_score * 100).toFixed(0)}</p>
+                            <p>{hub.main_position} • 허브 점수 {sf(hub.hub_score * 100, 0)}</p>
                           </div>
                         </div>
                         <div className={styles.hubStatsGrid}>

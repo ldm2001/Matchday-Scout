@@ -46,10 +46,18 @@ def shot_ctx(shot: pd.Series, before_events: pd.DataFrame) -> Dict:
     elif distance > 20: better_x, suggestion_reason = min(shot_x + 10, 90), ["슈팅 지점 10m 전진"]
     elif distance > 10: better_x, suggestion_reason = min(shot_x + 5, 95), ["페널티 박스 안쪽 침투"]
     
-    if shot_y < 20: better_y, suggestion_reason = shot_y + 12, suggestion_reason + ["중앙으로 커팅"]
-    elif shot_y > 48: better_y, suggestion_reason = shot_y - 12, suggestion_reason + ["중앙으로 커팅"]
-    elif shot_y < 30: better_y = shot_y + 8
-    elif shot_y > 38: better_y = shot_y - 8
+    if shot_y < 20:
+        better_y = shot_y + 12
+        suggestion_reason.append("중앙으로 커팅")
+    elif shot_y > 48:
+        better_y = shot_y - 12
+        suggestion_reason.append("중앙으로 커팅")
+    elif shot_y < 30:
+        better_y = shot_y + 8
+        suggestion_reason.append("중앙 방향 위치 조정")
+    elif shot_y > 38:
+        better_y = shot_y - 8
+        suggestion_reason.append("중앙 방향 위치 조정")
     
     if ((better_x - shot_x)**2 + (better_y - shot_y)**2)**0.5 < 5:
         better_x = min(shot_x + 5, 95)
