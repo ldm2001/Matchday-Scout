@@ -1,9 +1,7 @@
-# 비디오 분석 작업 저장소 (인메모리)
 from dataclasses import dataclass
 from threading import Lock
 from time import time
 from typing import Dict, Optional
-
 
 # 분석 작업 데이터
 @dataclass
@@ -16,7 +14,6 @@ class Job:
     file_path: Optional[str] = None
     report: Optional[dict] = None
     error: Optional[str] = None
-
 
 # 스레드 안전한 작업 저장소
 class Store:

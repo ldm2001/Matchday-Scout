@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# 공통 주석: 값 설정, 함수 정의, 반복 처리, 조건 분기
 import sys
 from pathlib import Path
 

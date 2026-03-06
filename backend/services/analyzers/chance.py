@@ -5,7 +5,6 @@ import math
 from typing import Dict, List
 from ..core.data import raw, matches
 
-
 def num(value, default=0.0):
     if value is None:
         return default
@@ -18,7 +17,6 @@ def num(value, default=0.0):
         return default if math.isnan(f) or math.isinf(f) else f
     except:
         return default
-
 
 def shot_ctx(shot: pd.Series, before_events: pd.DataFrame) -> Dict:
     shot_x = num(shot.get('start_x', 50), 50)

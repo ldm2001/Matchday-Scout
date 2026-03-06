@@ -1,4 +1,5 @@
-# VAEP pipeline aligned with Decroos et al. (KDD'19)
+# VAEP (Valuing Actions by Estimating Probabilities) 머신러닝 파이프라인
+# Decroos et al. (KDD'19) 논문 스키마를 기반으로 축구 이벤트 파편의 득실 확률을 평가하는 핵심 모델 레이어
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -72,6 +73,7 @@ def _game_seq(events: pd.DataFrame) -> pd.DataFrame:
     return events.sort_values(["game_id", "period_id", "time_seconds", "action_id"]).reset_index(drop=True)
 
 
+# 머신러닝 학습 및 추론을 위한 특성 엔지니어링 (n개의 피처 조합 추출)
 def _feat_pack(
     events: pd.DataFrame, k_actions: int = K_ACTIONS
 ) -> Tuple[pd.DataFrame, np.ndarray, np.ndarray, pd.DataFrame]:
@@ -249,6 +251,7 @@ def _feat_pack(
     return features_df, labels_score_arr, labels_concede_arr, meta_df
 
 
+# 지정된 훈련 데이터 셋업을 바탕으로 CatBoost 또는 선형 분류 모델을 훈련, 캘리브레이션 반환
 def _model_cal(
     X_train: pd.DataFrame, y_train: np.ndarray, X_val: pd.DataFrame, y_val: np.ndarray
 ) -> CalibratedClassifierCV:
@@ -298,6 +301,7 @@ def _model_cal(
     return calibrated
 
 
+# 캐싱된 모델들을 반환하거나 필요 시 새롭게(데이터 스탬프 기반) VAEP 듀얼 모델을 훈련시켜 리턴
 def vaep_models(
     date_max: Optional[pd.Timestamp] = None, drop_games: Optional[Iterable[int]] = None
 ) -> VaepModels:
@@ -416,6 +420,7 @@ def _feat_events(events: pd.DataFrame) -> pd.DataFrame:
     return features
 
 
+# 주어진 데이터 프레임 로우들에 대해 스코어링 추론(p_score, p_concede 예측) 벡터화 수행
 def prob_vals(
     events: pd.DataFrame,
     date_max: Optional[pd.Timestamp] = None,
@@ -434,6 +439,7 @@ def prob_vals(
     return p_score, p_concede, models.metrics
 
 
+# 각 액션 수행 직전과 직후의 득실 확률 차이를 연거푸 추적/계산해 선수가 기여한 순수 가치(VAEP) 할당
 def vaep_vals(
     events: pd.DataFrame, p_score: np.ndarray, p_concede: np.ndarray
 ) -> pd.DataFrame:
@@ -483,6 +489,7 @@ def vaep_vals(
     return events
 
 
+# 이벤트에 할당된 개별 VAEP 가치들을 개별 플레이어 스탯으로 그룹핑 후 합산
 def player_vals(events: pd.DataFrame, team_id: Optional[int] = None) -> List[Dict]:
     if team_id is not None:
         events = events[events["team_id"] == team_id]
@@ -520,6 +527,7 @@ def player_vals(events: pd.DataFrame, team_id: Optional[int] = None) -> List[Dic
     return grouped.sort_values("total_vaep", ascending=False).to_dict("records")
 
 
+# 스쿼드 전체의 VAEP 기여도 총합 및 공격/수비 분류별 최우수 선수 리포트 제공 상위 API
 def team_sum(events: pd.DataFrame, team_id: int, n_top: int = 10, guard: bool = False) -> Dict:
     events = spadl_map(events)
     events = action_rows(events)
@@ -557,6 +565,7 @@ def team_sum(events: pd.DataFrame, team_id: int, n_top: int = 10, guard: bool = 
     }
 
 
+# 특정 팀 내에서 가장 가치 기여도가 높았던 개별 단위 액션(Top Valuable Actions)을 긁어오는 API
 def team_vals(events: pd.DataFrame, team_id: int, n_top_actions: int = 5, guard: bool = False) -> Dict:
     events = spadl_map(events)
     events = action_rows(events)

@@ -5,7 +5,6 @@ from sklearn.cluster import KMeans
 from sklearn.preprocessing import StandardScaler
 from typing import List, Dict
 from collections import Counter
-
 from ..core.spec import Analyzer
 
 class SetPieceAnalyzer(Analyzer):

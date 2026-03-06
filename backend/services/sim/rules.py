@@ -1,15 +1,15 @@
+# 시뮬레이션 기반 승패 확률 산출 시 개입 가능한 전술 '룰북(Rules)' 모음
 from typing import Dict, Any
-
 from .spec import SimState, Rule
 
-
+# 룰 1: 중원 허브(Playmaker) 집중 방어 및 압박 룰
 class HubPressure(Rule):
     key = "press_hub"
 
     def data(self, state: SimState) -> Dict[str, Any]:
         return {
             "key": self.key,
-            "bonus": 0.05,
+            "bonus": 0.05,  # 적용 시 승률 기여분(가중치)
             "detail": {
                 "name": "허브 압박",
                 "effect": "+5%p",
@@ -21,14 +21,14 @@ class HubPressure(Rule):
             },
         }
 
-
+# 룰 2: 세트피스 특화 방어 대응 룰
 class SetpieceGuard(Rule):
     key = "counter_setpiece"
 
     def data(self, state: SimState) -> Dict[str, Any]:
         return {
             "key": self.key,
-            "bonus": 0.03,
+            "bonus": 0.03,  # 안정적 방어로 +3%p
             "detail": {
                 "name": "세트피스 대응",
                 "effect": "+3%p",
@@ -40,14 +40,14 @@ class SetpieceGuard(Rule):
             },
         }
 
-
+# 룰 3: 상대의 수비적 허점(패턴)을 노린 공격 전개 룰
 class PatternRoute(Rule):
     key = "exploit_pattern"
 
     def data(self, state: SimState) -> Dict[str, Any]:
         return {
             "key": self.key,
-            "bonus": 0.04,
+            "bonus": 0.04,  # xG 상승 기대분 +4%p
             "detail": {
                 "name": "패턴 공략",
                 "effect": "+4%p",
@@ -59,6 +59,7 @@ class PatternRoute(Rule):
             },
         }
 
-
+# 글로벌 등록 룰셋 배열
 RULES = [HubPressure(), SetpieceGuard(), PatternRoute()]
+# 조회 최적화를 위한 딕셔너리 매핑 구조
 RULE_MAP = {rule.key: rule for rule in RULES}

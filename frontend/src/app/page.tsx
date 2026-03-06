@@ -1,4 +1,4 @@
-// 메인 페이지 컴포넌트 - K리그 전술 분석 대시보드
+// K리그 전술 분석 대시보드
 'use client';
 
 import { useState, useEffect, useRef, useCallback } from 'react';
@@ -260,7 +260,6 @@ export default function Home() {
   }, [selectedTeam, opponent]);
 
   // 공격 Phase 리플레이 로더
-  // # phase replay fetch
   async function loadPhaseReplay(phaseId: number) {
     if (!selectedTeam) return;
     const token = analysisToken.current;

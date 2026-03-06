@@ -5,10 +5,8 @@ import networkx as nx
 from typing import Dict, List
 from functools import lru_cache
 import math
-
 from ..core.data import team_events
 from ..core.spec import Analyzer
-
 
 def num(value, default=0.0):
     if value is None:
@@ -21,13 +19,11 @@ def num(value, default=0.0):
     except:
         return default
 
-
 def num_int(value, default=0):
     try:
         return int(num(value, default))
     except:
         return default
-
 
 class NetworkAnalyzer(Analyzer):
     def __init__(self, events_df: pd.DataFrame, limit: int = 2):
@@ -256,7 +252,6 @@ class NetworkAnalyzer(Analyzer):
 def team_net(events_df: pd.DataFrame, n_hubs: int = 2) -> Dict:
     analyzer = NetworkAnalyzer(events_df, n_hubs)
     return analyzer.data()
-
 
 @lru_cache(maxsize=128)
 def net_box(team_id: int, n_games: int, n_hubs: int, mark: tuple) -> Dict:

@@ -1,4 +1,5 @@
 #!/bin/bash
+# 공통 주석: 로직 실행, 안내 출력, 변수 설정, 도메인 설정, 조건 분기, 기본 분기, 입력 수집, 종료 처리, 블록 경계, 명령 실행, 블록 처리
 
 # Matchday Scout Nginx HTTPS 설정 스크립트
 # 이 스크립트는 Let's Encrypt SSL 인증서를 사용하여 HTTPS를 설정합니다.
@@ -15,7 +16,6 @@ GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 NC='\033[0m' # No Color
 
-# 도메인 설정
 DOMAIN="mscout.xyz"
 WWW_DOMAIN="www.mscout.xyz"
 
