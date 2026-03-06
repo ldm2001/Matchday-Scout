@@ -1,0 +1,167 @@
+.container {
+    background: white;
+    border-radius: 12px;
+    padding: 10px;
+    border: 1px solid #e2e8f0;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+}
+
+.emptyState {
+    min-height: 280px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #64748b;
+    background: #f8fafc;
+    border-radius: 12px;
+}
+
+.svgFrame {
+    width: 100%;
+    position: relative;
+    overflow: hidden;
+    border-radius: 8px;
+    transition: height 0.18s ease;
+}
+
+.svgArea {
+    width: 100%;
+    height: 100%;
+    display: block;
+}
+
+.eventInfo {
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-top: 8px;
+    padding: 0 16px;
+    background: linear-gradient(135deg, #f1f5f9, #e2e8f0);
+    border-radius: 8px;
+}
+
+.playerName {
+    font-weight: 600;
+    color: #1e293b;
+    font-size: 13px;
+}
+
+.dotSep {
+    color: #94a3b8;
+    margin: 0 10px;
+    font-size: 13px;
+}
+
+.actionType {
+    color: #3b82f6;
+    font-weight: 500;
+    font-size: 13px;
+}
+
+.actionPos {
+    color: #64748b;
+    font-size: 12px;
+}
+
+.controlsWrap {
+    height: 42px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    margin-top: 16px;
+}
+
+.resetBtn {
+    width: 38px;
+    height: 38px;
+    border-radius: 8px;
+    border: 1px solid #e2e8f0;
+    background: white;
+    cursor: pointer;
+    font-size: 15px;
+    color: #64748b;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.15s ease;
+}
+
+.playBtn {
+    width: 50px;
+    height: 50px;
+    border-radius: 50%;
+    border: none;
+    background: linear-gradient(135deg, #3b82f6, #2563eb);
+    color: white;
+    cursor: pointer;
+    font-size: 18px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 4px 12px rgba(37, 99, 235, 0.3);
+    transition: transform 0.15s ease;
+}
+
+.playBtn:active {
+    transform: scale(0.95);
+}
+
+.speedGroup {
+    display: flex;
+    gap: 4px;
+}
+
+.speedBtn {
+    padding: 7px 13px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 12px;
+    font-weight: 600;
+    transition: all 0.15s ease;
+}
+
+.speedBtnActive {
+    border: none;
+    background: linear-gradient(135deg, #3b82f6, #2563eb);
+    color: white;
+}
+
+.speedBtnInactive {
+    border: 1px solid #e2e8f0;
+    background: white;
+    color: #64748b;
+}
+
+.counterTxt {
+    font-size: 12px;
+    color: #64748b;
+    font-weight: 500;
+    min-width: 48px;
+    text-align: center;
+}
+
+.legendWrap {
+    display: flex;
+    justify-content: center;
+    gap: 24px;
+    margin-top: 8px;
+    font-size: 10px;
+    color: #64748b;
+}
+
+.legendItem {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.legendMarker {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+}

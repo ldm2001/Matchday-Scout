@@ -21,6 +21,7 @@ export default function PatternCard({ pattern, rank, onViewReplay }: PatternCard
         return colors[rank] || 'bg-slate-600/20 text-slate-400 border-slate-500/30';
     };
 
+    // 슈팅 전환율에 따른 텍스트 강조 색상 반환
     const getConversionColor = (rate: number) => {
         if (rate >= 0.2) return 'text-red-400';
         if (rate >= 0.1) return 'text-yellow-400';
@@ -46,6 +47,7 @@ export default function PatternCard({ pattern, rank, onViewReplay }: PatternCard
                 </span>
             </div>
 
+            {/* 발생 빈도, 평균 패스, 평균 소요 시간 통계 */}
             <div className="grid grid-cols-3 gap-4 mb-4">
                 <div className="text-center p-2 bg-slate-800/50 rounded">
                     <p className="text-2xl font-bold text-white">{pattern.frequency}</p>
@@ -61,6 +63,7 @@ export default function PatternCard({ pattern, rank, onViewReplay }: PatternCard
                 </div>
             </div>
 
+            {/* 이 패턴에서 자주 나오는 주요 패스 시퀀스 (최대 2개 표시) */}
             <div className="mb-4">
                 <p className="text-xs text-slate-400 mb-2">주요 시퀀스</p>
                 <div className="flex flex-wrap gap-1">
@@ -72,6 +75,7 @@ export default function PatternCard({ pattern, rank, onViewReplay }: PatternCard
                 </div>
             </div>
 
+            {/* 패턴 리플레이 영상 재생 버튼 */}
             {onViewReplay && (
                 <button
                     onClick={onViewReplay}

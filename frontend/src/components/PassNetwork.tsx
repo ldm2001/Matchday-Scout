@@ -2,6 +2,7 @@
 'use client';
 
 import { useState } from 'react';
+import styles from './PassNetwork.module.css';
 
 // 네트워크 노드 (선수)
 interface NetworkNode {
@@ -117,22 +118,12 @@ export default function PassNetwork({ nodes, edges }: PassNetworkProps) {
     };
 
     return (
-        <div style={{
-            background: 'white',
-            borderRadius: 12,
-            padding: 20,
-            border: '1px solid #e2e8f0'
-        }}>
-            <div style={{
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-                marginBottom: 12
-            }}>
-                <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: '#1e293b' }}>
+        <div className={styles.container}>
+            <div className={styles.header}>
+                <h3 className={styles.title}>
                     패스 네트워크
                 </h3>
-                <span style={{ fontSize: 12, color: '#64748b' }}>
+                <span className={styles.subtitle}>
                     선수를 호버하면 패스 연결이 강조됩니다
                 </span>
             </div>
@@ -140,7 +131,7 @@ export default function PassNetwork({ nodes, edges }: PassNetworkProps) {
             <svg
                 width={width}
                 height={height}
-                style={{ display: 'block', margin: '0 auto' }}
+                className={styles.svgGraph}
             >
                 {/* 피치 배경 */}
                 <rect
@@ -209,7 +200,7 @@ export default function PassNetwork({ nodes, edges }: PassNetworkProps) {
                             stroke={isHighlighted ? '#fbbf24' : 'rgba(255,255,255,0.3)'}
                             strokeWidth={isHighlighted ? strokeWidth + 1 : strokeWidth}
                             strokeOpacity={isDimmed ? 0.05 : isHighlighted ? 1 : 0.25}
-                            style={{ transition: 'all 0.15s ease' }}
+                            className={styles.lineAnim}
                         />
                     );
                 })}
@@ -234,7 +225,7 @@ export default function PassNetwork({ nodes, edges }: PassNetworkProps) {
                             key={node.id}
                             onMouseEnter={() => setHoveredNode(node.id)}
                             onMouseLeave={() => setHoveredNode(null)}
-                            style={{ cursor: 'pointer' }}
+                            className={styles.nodeGroup}
                         >
                             {/* 그림자 */}
                             <circle
@@ -253,7 +244,7 @@ export default function PassNetwork({ nodes, edges }: PassNetworkProps) {
                                 stroke={isHovered ? '#fbbf24' : 'white'}
                                 strokeWidth={isHovered ? 3 : 2}
                                 opacity={isDimmed ? 0.4 : 1}
-                                style={{ transition: 'all 0.15s ease' }}
+                                className={styles.nodeHover}
                             />
 
                             {/* 이름 */}
@@ -266,7 +257,7 @@ export default function PassNetwork({ nodes, edges }: PassNetworkProps) {
                                 fontSize={11}
                                 fontWeight={700}
                                 opacity={isDimmed ? 0.4 : 1}
-                                style={{ pointerEvents: 'none', textShadow: '0 1px 3px rgba(0,0,0,0.8), 0 0 2px rgba(0,0,0,0.5)' }}
+                                className={styles.nodeName}
                             >
                                 {node.name.split(' ').pop()?.slice(0, 3) || node.name.slice(0, 3)}
                             </text>
@@ -308,28 +299,20 @@ export default function PassNetwork({ nodes, edges }: PassNetworkProps) {
                 })}
             </svg>
 
-            {/* 범례 */}
-            <div style={{
-                display: 'flex',
-                justifyContent: 'center',
-                gap: 16,
-                marginTop: 12,
-                flexWrap: 'wrap'
-            }}>
+            {/* 하단 범례 표시 */}
+            <div className={styles.legendContainer}>
                 {[
                     { color: '#fbbf24', label: '골키퍼' },
                     { color: '#3b82f6', label: '수비수' },
                     { color: '#8b5cf6', label: '미드필더' },
                     { color: '#ef4444', label: '공격수' },
                 ].map(({ color, label }) => (
-                    <div key={label} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                        <div style={{
-                            width: 12,
-                            height: 12,
-                            borderRadius: '50%',
-                            background: color
-                        }} />
-                        <span style={{ fontSize: 11, color: '#64748b' }}>{label}</span>
+                    <div key={label} className={styles.legendItem}>
+                        <div
+                            className={styles.legendColor}
+                            style={{ background: color }}
+                        />
+                        <span className={styles.legendLabel}>{label}</span>
                     </div>
                 ))}
             </div>

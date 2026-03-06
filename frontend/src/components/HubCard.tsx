@@ -41,6 +41,7 @@ export default function HubCard({ hub, onSimulate }: HubCardProps) {
             </div>
 
             <div className="grid grid-cols-2 gap-4 mb-4">
+                {/* 패스 수신 스탯 (초록색 바) */}
                 <div className="p-3 bg-slate-800/50 rounded-lg">
                     <div className="flex items-center justify-between mb-1">
                         <span className="text-xs text-slate-400">패스 수신</span>
@@ -53,6 +54,7 @@ export default function HubCard({ hub, onSimulate }: HubCardProps) {
                         />
                     </div>
                 </div>
+                {/* 패스 시도 스탯 (파란색 바) */}
                 <div className="p-3 bg-slate-800/50 rounded-lg">
                     <div className="flex items-center justify-between mb-1">
                         <span className="text-xs text-slate-400">패스 시도</span>
@@ -67,6 +69,7 @@ export default function HubCard({ hub, onSimulate }: HubCardProps) {
                 </div>
             </div>
 
+            {/* 허브 플레이어의 주요 연결(패스/리시브 대상) 상위 4명 */}
             <div className="mb-4">
                 <p className="text-xs text-slate-400 mb-2">주요 연결</p>
                 <div className="space-y-2">
@@ -87,6 +90,7 @@ export default function HubCard({ hub, onSimulate }: HubCardProps) {
                 <p className="text-sm text-slate-300">{hub.disruption_impact.description}</p>
             </div>
 
+            {/* 파괴/압박 시뮬레이션 버튼 (Props로 전달될 때만 표시) */}
             {onSimulate && (
                 <button
                     onClick={onSimulate}

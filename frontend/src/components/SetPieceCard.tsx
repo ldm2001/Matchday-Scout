@@ -26,6 +26,7 @@ export default function SetPieceCard({ routine }: SetPieceCardProps) {
         );
     };
 
+    // 타겟존(니어포스트/파포스트 등) 한글 라벨 변환
     const getZoneLabel = (zone: string) => {
         const labels: Record<string, string> = {
             'near_post': '니어 포스트',
@@ -36,6 +37,7 @@ export default function SetPieceCard({ routine }: SetPieceCardProps) {
         return labels[zone] || zone;
     };
 
+    // 스윙(궤적) 타입(인스윙/아웃스윙) 한글 라벨 변환
     const getSwingLabel = (swing: string) => {
         if (swing === 'inswing') return '인스윙';
         if (swing === 'outswing') return '아웃스윙';
@@ -67,6 +69,7 @@ export default function SetPieceCard({ routine }: SetPieceCardProps) {
                 </div>
             </div>
 
+            {/* 발생 빈도 및 주요 타겟 통계 */}
             <div className="grid grid-cols-2 gap-3 mb-4">
                 <div className="p-2 bg-slate-800/50 rounded text-center">
                     <p className="text-lg font-bold text-white">{routine.frequency}</p>
@@ -78,6 +81,7 @@ export default function SetPieceCard({ routine }: SetPieceCardProps) {
                 </div>
             </div>
 
+            {/* 수비 제안 문구 (하이라이트 박스) */}
             <div className="p-3 bg-amber-500/10 border border-amber-500/30 rounded-lg">
                 <div className="flex items-start gap-2">
                     <svg className="w-5 h-5 text-amber-400 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">

@@ -31,6 +31,7 @@ const pickId = (url: string) => {
   }
 };
 
+// 초(sec)를 분:초 형식(MM:SS)으로 변환
 const fmtTime = (sec: number) => {
   if (!Number.isFinite(sec)) return '--:--';
   const value = Math.max(0, Math.floor(sec));
@@ -39,18 +40,21 @@ const fmtTime = (sec: number) => {
   return `${String(min).padStart(2, '0')}:${String(rest).padStart(2, '0')}`;
 };
 
+// 피치 Y축 좌표를 기준으로 좌/우/중앙 판별
 const zoneLabel = (y: number) => {
   if (y < 22.5) return '좌측';
   if (y > 45.5) return '우측';
   return '중앙';
 };
 
+// 피치 X축 좌표를 기준으로 수직 레인(박스 안/외곽/중앙) 판별
 const laneLabel = (x: number) => {
   if (x >= 88) return '박스 안';
   if (x >= 80) return '박스 근처';
   return '중앙 지역';
 };
 
+// 현재 볼 좌표에서 양측 골포스트가 이루는 각도(슈팅 각도) 계산
 const shotAngle = (x: number, y: number) => {
   const left = { x: 105, y: 34 - 3.66 };
   const right = { x: 105, y: 34 + 3.66 };
@@ -63,6 +67,7 @@ const shotAngle = (x: number, y: number) => {
   return (Math.acos(clamped) * 180) / Math.PI;
 };
 
+// 실제 위치에서 AI 제안 위치까지의 이동 추천 가이드 문구 생성
 const moveHint = (moment: VideoMoment) => {
   const dx = moment.suggest.x - moment.actual.x;
   const dy = moment.suggest.y - moment.actual.y;
@@ -71,6 +76,7 @@ const moveHint = (moment: VideoMoment) => {
   return `${forward} · ${lateral}`;
 };
 
+// 문자열 노트(Note) 파싱 헬퍼 (레인, 거리, 각도, 템포 등 추출)
 const parseNote = (note: string) => {
   const parts = note.split('·').map((part) => part.trim());
   const lane = parts[0] || '중앙 지역';
@@ -109,6 +115,7 @@ const suggestPalettes: Record<string, { label: string; color: string }> = {
   violet: { label: '라벤더', color: '139, 92, 246' },
 };
 
+// 히트맵 셀 압축(Packing) 처리 로직
 const packHeat = (cells: HeatCell[], rows: number, cols: number, step: number) => {
   const map = new Map<string, HeatCell>();
   cells.forEach((cell) => {
@@ -144,6 +151,7 @@ const packHeat = (cells: HeatCell[], rows: number, cols: number, step: number) =
   return { cells: packed, max };
 };
 
+// 작업 상태 표기 라벨링
 const statusLabel: Record<string, string> = {
   queued: '대기',
   run: '분석 중',
@@ -318,6 +326,7 @@ export default function VideoAnalysis() {
   }, [moments]);
   const timelineMoments = useMemo(() => [...moments].sort((a, b) => a.ts - b.ts), [moments]);
 
+  // 비디오 분석 작업 요청 (업로드/유튜브 구분)
   const run = async () => {
     if (!url.trim() && !file) {
       setErr('유튜브 링크를 입력하거나 파일을 선택해주세요.');
@@ -370,6 +379,7 @@ export default function VideoAnalysis() {
     return () => clearInterval(timer);
   }, [jobKey, jobStatus]);
 
+  // 특정 시점으로 점프 및 시각 피드백 발동
   const handlePick = (ts: number) => {
     setSeek(ts);
     setActiveTs(ts);
@@ -393,6 +403,7 @@ export default function VideoAnalysis() {
     }
   };
 
+  // 로컬 비디오 영상 타임라인 변경 시, 가까운 분석 모달(Moment) 탐색
   useEffect(() => {
     if (!localSrc || !videoRef.current || moments.length === 0) return;
     const video = videoRef.current;
@@ -428,6 +439,7 @@ export default function VideoAnalysis() {
     return () => video.removeEventListener('timeupdate', onTime);
   }, [localSrc, moments, manualTs, activeTs]);
 
+  // 유튜브 임베딩 플레이어 IFrame API 초기화
   useEffect(() => {
     if (localSrc) return;
     if (!videoId || !playerHostRef.current) return;
@@ -535,6 +547,7 @@ export default function VideoAnalysis() {
       });
     }
   }, [activeTs]);
+  // 현재 포커스된 모멘트를 기반으로 전술 제안 라인(텍스트) 생성
   const tacticLine = useMemo(() => {
     if (!activeMoment) return '';
     const x = activeMoment.actual.x;
@@ -546,6 +559,7 @@ export default function VideoAnalysis() {
 
   const overlayVisible = !!activeMoment && (manualTs !== null || flashOn);
 
+  // 실제 캔버스(Canvas) 위에 히트맵, 패스/위치 추천 경로 오버레이 그리기
   useEffect(() => {
     if (!localSrc && !videoId) return;
     if (!canvasRef.current) return;
@@ -579,10 +593,12 @@ export default function VideoAnalysis() {
       x: pt.x * scaleX,
       y: pt.y * scaleY,
     });
+    // 실제 위치 vs 제안 위치 등 화면 보정(Scale)
     const actual = overlay ? toScreen(overlay.actual_px) : null;
     const suggest = overlay ? toScreen(overlay.suggest_px) : null;
     const goal = overlay ? toScreen(overlay.goal_px) : null;
 
+    // 히트맵 시각화 렌더
     if (showHeat && packedHeat?.base.cells && packedHeat.max > 0) {
       const color = heatPalettes[heatTone]?.color || heatPalettes.sun.color;
       const strength = Math.max(0.1, heatStrength / 100);
@@ -601,6 +617,7 @@ export default function VideoAnalysis() {
       });
     }
 
+    // AI 추천 이동 히트맵 렌더
     if (showSuggestHeat && packedHeat?.suggest.cells && packedHeat.max > 0) {
       const color = suggestPalettes[suggestTone]?.color || suggestPalettes.mint.color;
       const strength = Math.max(0.1, heatStrength / 100);
@@ -619,6 +636,7 @@ export default function VideoAnalysis() {
       });
     }
 
+    // 모서리가 둥근 사각형 그리기 헬퍼 함수
     const roundRect = (
       x: number,
       y: number,
@@ -640,6 +658,7 @@ export default function VideoAnalysis() {
       ctx.closePath();
     };
 
+    // 시각적 오버레이가 필요하다면 화살표/가이드 라인 그리기
     if (overlayVisible && showLines && actual && suggest && goal) {
       ctx.lineCap = 'round';
       ctx.lineJoin = 'round';
@@ -755,6 +774,7 @@ export default function VideoAnalysis() {
       ctx.textBaseline = 'alphabetic';
     };
 
+    // 오버레이 상 실제 위치/제안 위치 마커 드로잉 통합
     if (overlayVisible && actual && suggest) {
       drawActualPoint(actual);
       drawSuggestPoint(suggest);

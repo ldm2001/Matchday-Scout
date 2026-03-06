@@ -1,6 +1,8 @@
 // 세트피스 피치 시각화 컴포넌트 - 코너킥/프리킥 경로와 타겟존 표시
 'use client';
 
+import styles from './SetpiecePitch.module.css';
+
 // 세트피스 루틴 데이터 타입
 interface SetpieceRoutine {
     type: string;
@@ -73,15 +75,8 @@ export default function SetpiecePitch({ routine }: SetpiecePitchProps) {
     return (
         <svg
             viewBox={`0 0 ${pitchWidth} ${pitchHeight}`}
-            style={{
-                width: pitchWidth,
-                height: pitchHeight,
-                maxWidth: '100%',
-                display: 'block',
-                border: '1px solid #e2e8f0',
-                borderRadius: 6,
-                marginBottom: 10
-            }}
+            className={styles.pitchSvg}
+            style={{ width: pitchWidth, height: pitchHeight }}
         >
             {/* Background */}
             <rect x="0" y="0" width={pitchWidth} height={pitchHeight} fill="#f5f5f0" />

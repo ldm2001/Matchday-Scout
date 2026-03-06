@@ -3,6 +3,7 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { ReplayEvent } from '@/types';
+import styles from './PitchReplay.module.css';
 
 interface PitchReplayProps {
     events: ReplayEvent[];
@@ -118,15 +119,7 @@ export default function PitchReplay({
 
     if (events.length === 0) {
         return (
-            <div style={{
-                minHeight: 280,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                color: '#64748b',
-                background: '#f8fafc',
-                borderRadius: 12
-            }}>
+            <div className={styles.emptyState}>
                 리플레이 데이터가 없습니다
             </div>
         );
@@ -136,37 +129,15 @@ export default function PitchReplay({
     const easeOutCubic = (t: number) => 1 - Math.pow(1 - t, 3);
 
     return (
-        <div
-            ref={containerRef}
-            style={{
-                background: 'white',
-                borderRadius: 12,
-                padding: 10,
-                border: '1px solid #e2e8f0',
-                boxShadow: '0 2px 8px rgba(0,0,0,0.04)',
-                height: '100%',
-                display: 'flex',
-                flexDirection: 'column'
-            }}
-        >
+        <div ref={containerRef} className={styles.container}>
             {/* Pitch SVG with fixed height */}
             <div
                 ref={frameRef}
-                style={{
-                    height: fieldHeight,
-                    width: '100%',
-                    position: 'relative',
-                    overflow: 'hidden',
-                    borderRadius: 8,
-                    transition: 'height 0.18s ease'
-                }}>
+                className={styles.svgFrame}
+                style={{ height: fieldHeight }}>
                 <svg
                     viewBox={`${-padX} ${-padY} ${viewWidth} ${viewHeight}`}
-                    style={{
-                        width: '100%',
-                        height: '100%',
-                        display: 'block'
-                    }}
+                    className={styles.svgArea}
                     preserveAspectRatio="xMidYMid meet"
                 >
                     {/* Gradient grass background */}
@@ -374,126 +345,62 @@ export default function PitchReplay({
                 </svg>
             </div>
 
-            {/* Current event info - fixed height */}
-            <div style={{
-                height: 32,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                marginTop: 8,
-                padding: '0 16px',
-                background: 'linear-gradient(135deg, #f1f5f9, #e2e8f0)',
-                borderRadius: 8
-            }}>
-                <span style={{ fontWeight: 600, color: '#1e293b', fontSize: 13 }}>
+            {/* Current event info */}
+            <div className={styles.eventInfo}>
+                <span className={styles.playerName}>
                     {currentEvent?.player || '선수'}
                 </span>
-                <span style={{ color: '#94a3b8', margin: '0 10px', fontSize: 13 }}>·</span>
-                <span style={{ color: '#3b82f6', fontWeight: 500, fontSize: 13 }}>{currentEvent?.type || '액션'}</span>
+                <span className={styles.dotSep}>·</span>
+                <span className={styles.actionType}>{currentEvent?.type || '액션'}</span>
                 {currentEvent?.position && currentEvent.position !== 'nan' && (
                     <>
-                        <span style={{ color: '#94a3b8', margin: '0 10px', fontSize: 13 }}>·</span>
-                        <span style={{ color: '#64748b', fontSize: 12 }}>{currentEvent.position}</span>
+                        <span className={styles.dotSep}>·</span>
+                        <span className={styles.actionPos}>{currentEvent.position}</span>
                     </>
                 )}
             </div>
 
-            {/* Controls - fixed height */}
-            <div style={{
-                height: 42,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: 12,
-                marginTop: 16
-            }}>
+            {/* Controls */}
+            <div className={styles.controlsWrap}>
                 <button
                     onClick={handleReset}
-                    style={{
-                        width: 38, height: 38,
-                        borderRadius: 8,
-                        border: '1px solid #e2e8f0',
-                        background: 'white',
-                        cursor: 'pointer',
-                        fontSize: 15,
-                        color: '#64748b',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        transition: 'all 0.15s ease'
-                    }}
+                    className={styles.resetBtn}
                 >
                     ⏮
                 </button>
 
                 <button
                     onClick={onPlayPause}
-                    style={{
-                        width: 50, height: 50,
-                        borderRadius: 50,
-                        border: 'none',
-                        background: 'linear-gradient(135deg, #3b82f6, #2563eb)',
-                        color: 'white',
-                        cursor: 'pointer',
-                        fontSize: 18,
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        boxShadow: '0 4px 12px rgba(37, 99, 235, 0.3)',
-                        transition: 'transform 0.15s ease'
-                    }}
+                    className={styles.playBtn}
                 >
                     {isPlaying ? '⏸' : '▶'}
                 </button>
 
-                <div style={{ display: 'flex', gap: 4 }}>
+                <div className={styles.speedGroup}>
                     {[0.5, 1, 2].map((speed) => (
                         <button
                             key={speed}
                             onClick={() => onSpeedChange(speed)}
-                            style={{
-                                padding: '7px 13px',
-                                borderRadius: 6,
-                                border: playbackSpeed === speed ? 'none' : '1px solid #e2e8f0',
-                                background: playbackSpeed === speed ? 'linear-gradient(135deg, #3b82f6, #2563eb)' : 'white',
-                                color: playbackSpeed === speed ? 'white' : '#64748b',
-                                cursor: 'pointer',
-                                fontSize: 12,
-                                fontWeight: 600,
-                                transition: 'all 0.15s ease'
-                            }}
+                            className={`${styles.speedBtn} ${playbackSpeed === speed ? styles.speedBtnActive : styles.speedBtnInactive}`}
                         >
                             {speed}x
                         </button>
                     ))}
                 </div>
 
-                <span style={{
-                    fontSize: 12,
-                    color: '#64748b',
-                    fontWeight: 500,
-                    minWidth: 48,
-                    textAlign: 'center'
-                }}>
+                <span className={styles.counterTxt}>
                     {currentEventIndex + 1} / {events.length}
                 </span>
             </div>
 
             {/* Legend */}
-            <div style={{
-                display: 'flex',
-                justifyContent: 'center',
-                gap: 24,
-                marginTop: 8,
-                fontSize: 10,
-                color: '#64748b'
-            }}>
-                <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                    <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#3b82f6' }}></span>
+            <div className={styles.legendWrap}>
+                <span className={styles.legendItem}>
+                    <span className={styles.legendMarker} style={{ background: '#3b82f6' }}></span>
                     홈 팀
                 </span>
-                <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                    <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#ef4444' }}></span>
+                <span className={styles.legendItem}>
+                    <span className={styles.legendMarker} style={{ background: '#ef4444' }}></span>
                     어웨이 팀
                 </span>
             </div>

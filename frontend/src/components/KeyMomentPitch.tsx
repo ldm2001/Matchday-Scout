@@ -22,18 +22,21 @@ const safeNum = (val: unknown, defaultVal: number): number => {
     return isNaN(num) || !isFinite(num) ? defaultVal : num;
 };
 
+// 숫자형 반환 헬퍼 함수 (유효하지 않으면 null)
 const toNum = (val: unknown): number | null => {
     if (val === null || val === undefined) return null;
     const num = Number(val);
     return Number.isFinite(num) ? num : null;
 };
 
+// 백분율(Percentage) 변환 헬퍼 (소수점일 경우 * 100 적용)
 const toPct = (val: unknown): number | null => {
     const num = toNum(val);
     if (num === null) return null;
     return num <= 1 ? num * 100 : num;
 };
 
+// 의미 없는 문자열(Null, None 등)을 걸러내는 텍스트 변환 헬퍼
 const cleanText = (val: unknown, fallback: string): string => {
     if (val === null || val === undefined) return fallback;
     const text = String(val).trim();
@@ -50,6 +53,7 @@ function MiniPitch3D({ moment }: { moment: KeyMoment }) {
     const suggestX = safeNum(moment.suggestion?.target_position?.x || moment.suggestion?.target_x, x + 10);
     const suggestY = safeNum(moment.suggestion?.target_position?.y || moment.suggestion?.target_y, y);
 
+    // 미니 피치 캔버스 크기(150x97)에 맞춰 비율(Scale) 계산
     // Scale to mini pitch (150x97)
     const scaleX = 150 / 105;
     const scaleY = 97 / 68;
@@ -127,6 +131,7 @@ function MiniPitch3D({ moment }: { moment: KeyMoment }) {
     );
 }
 
+// 찬스 클릭 시 활성화되는 3D 상세 분석 모달 컴포넌트
 // Modal component
 function Modal3D({ moment, onClose, teamName }: { moment: KeyMoment; onClose: () => void; teamName: string }) {
     const [pitchSize, setPitchSize] = useState(() => {
@@ -136,6 +141,7 @@ function Modal3D({ moment, onClose, teamName }: { moment: KeyMoment; onClose: ()
         return { width, height: Math.round(width * 0.48) };
     });
 
+    // 화면 크기에 반응하여 3D 렌더러 사이즈 자동 조정
     useEffect(() => {
         const handleResize = () => {
             const maxWidth = Math.min(680, window.innerWidth - 80);
@@ -163,6 +169,7 @@ function Modal3D({ moment, onClose, teamName }: { moment: KeyMoment; onClose: ()
     const moveLabel = `${shiftDistance.toFixed(1)}m`;
     const goalLabel = `${goalDistance.toFixed(1)}m`;
 
+    // 실제 xG 수치 및 AI 추천으로 얻을 수 있는 xG 향상분(Delta) 계산
     const actualXg = toPct(moment.failure_analysis?.xg);
     const expectedXg = toPct(moment.suggestion?.expected_xg);
     const deltaXg = actualXg !== null && expectedXg !== null ? expectedXg - actualXg : null;
@@ -365,6 +372,7 @@ export default function KeyMomentPitch({ moments, teamName }: KeyMomentPitchProp
         import('./Pitch3D');
     }, []);
 
+    // 모달 활성화 시 바디 스크롤 방지용 훅
     useEffect(() => {
         if (!selectedMoment || typeof document === 'undefined') return;
         const prevOverflow = document.body.style.overflow;

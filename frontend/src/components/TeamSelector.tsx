@@ -16,6 +16,7 @@ export default function TeamSelector({ selectedTeam, onTeamSelect }: TeamSelecto
     const [isOpen, setIsOpen] = useState(false);
     const [loading, setLoading] = useState(true);
 
+    // 컴포넌트 마운트 시 전체 팀 목록을 API로 로딩
     useEffect(() => {
         async function loadTeams() {
             try {
@@ -38,6 +39,7 @@ export default function TeamSelector({ selectedTeam, onTeamSelect }: TeamSelecto
 
     return (
         <div className="relative">
+            {/* 드롭다운 토글 버튼 */}
             <button
                 onClick={() => setIsOpen(!isOpen)}
                 className="flex items-center justify-between w-64 px-4 py-3 bg-slate-800 border border-slate-600 rounded-lg hover:border-blue-500 transition-colors"
@@ -55,6 +57,7 @@ export default function TeamSelector({ selectedTeam, onTeamSelect }: TeamSelecto
                 </svg>
             </button>
 
+            {/* 드롭다운 메뉴 아이템 리스트 */}
             {isOpen && (
                 <div className="absolute z-50 w-64 mt-2 bg-slate-800 border border-slate-600 rounded-lg shadow-xl max-h-80 overflow-y-auto">
                     {teams.map((team) => (
