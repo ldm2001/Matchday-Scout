@@ -4,22 +4,16 @@ from fastapi import APIRouter, File, Form, HTTPException, UploadFile
 from pydantic import BaseModel
 from services.video import job_item as job_item_core, job_slot as job_slot_core
 
-# 업로드 캐시 경로
-CACHE = Path(__file__).resolve().parents[1] / "cache" / "video"
-# 허용 확장자
-EXTS = {".mp4", ".mov", ".mkv"}
-# 청크 크기
-CHUNK = 1024 * 1024
+CACHE = Path(__file__).resolve().parents[1] / "cache" / "video" # 업로드 캐시 경로
+EXTS = {".mp4", ".mov", ".mkv"} # 허용 확장자
+CHUNK = 1024 * 1024 # 청크 크기
 
-# 비디오 라우터
-router = APIRouter()
-# 캐시 폴더 보장
-CACHE.mkdir(parents=True, exist_ok=True)
+router = APIRouter() # 비디오 라우터
+CACHE.mkdir(parents=True, exist_ok=True) # 캐시 폴더 보장
 
 # 요청 바디 모델
 class VideoReq(BaseModel):
-    # 입력 URL
-    url: str
+    url: str # 입력 URL
 
 # 응답 카드 변환
 def card(job) -> dict:
