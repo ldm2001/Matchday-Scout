@@ -3,6 +3,17 @@ open_track/
 __pycache__/
 *.pyc
 backend/cache/
+backend/.cache/
+
+# 로컬 에이전트/작업 상태
+.omc/
+.omx/
+.vscode/
+**/.omc/
+**/.omx/
+
+# 로컬 워크플로우 스냅샷
+docs/.pdca-snapshots/
 
 # 환경변수 파일
 .env

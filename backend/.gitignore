@@ -1,0 +1,16 @@
+# 학습된 VAEP 모델 디스크 캐시 (services/vaep/model.py:_save_disk)
+# vaep/*.pkl 은 첫 사용자 cold-start 회피를 위해 git tracking, 그 외 .cache/ 하위는 ignore.
+.cache/*
+!.cache/vaep/
+!.cache/vaep/**
+.cache/vaep/*.tmp
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+.venv/
+venv/
