@@ -4,18 +4,18 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import Image from 'next/image';
 import {
-  getTeamPatterns,
-  getTeamSetpieces,
-  getTeamNetwork,
-  getTeamsOverview,
-  runPreMatchSimulation,
-  getTeamVAEP,
-  getTeamPhases,
-  getPhaseReplay,
+  teamPatterns,
+  teamSetpieces,
+  teamNetwork,
+  teamsOverview,
+  preMatch,
+  teamVAEP,
+  teamPhases,
+  phaseReplay,
   matchList,
   matchChances,
-  getTeamAnalysis,
-  getNetworkGraph,
+  teamAnalysis,
+  netGraph,
   MatchResult,
   ChanceAnalysis,
   TeamAnalysis,
@@ -115,7 +115,7 @@ export default function Home() {
   const [chanceLoading, setChanceLoading] = useState(false);
 
   // Team AI analysis state
-  const [teamAnalysis, setTeamAnalysis] = useState<TeamAnalysis | null>(null);
+  const [analysis, setAnalysis] = useState<TeamAnalysis | null>(null);
 
   // Network graph state
   interface NetworkData {
@@ -130,7 +130,7 @@ export default function Home() {
   // 팀 순위 초기 로딩
   const loadStandings = useCallback(async () => {
     try {
-      const standingsData = await getTeamsOverview();
+      const standingsData = await teamsOverview();
       setStandings(standingsData.standings);
     } catch (err) {
       console.error('Failed to load standings:', err);
@@ -153,7 +153,7 @@ export default function Home() {
     setReplayEvents([]);
     setRecentMatches([]);
     setChanceAnalysis(null);
-    setTeamAnalysis(null);
+    setAnalysis(null);
     setNetworkGraph(null);
     setVaepData(null);
     setSetpieceIndex(0);
@@ -171,19 +171,19 @@ export default function Home() {
       }
     };
 
-    if (!(await loadStep(() => getTeamPatterns(teamId, ANALYSIS_GAMES, 5), (data) => {
+    if (!(await loadStep(() => teamPatterns(teamId, ANALYSIS_GAMES, 5), (data) => {
       setPatterns(data.patterns);
     }))) return;
 
-    if (!(await loadStep(() => getTeamSetpieces(teamId, ANALYSIS_GAMES), (data) => {
+    if (!(await loadStep(() => teamSetpieces(teamId, ANALYSIS_GAMES), (data) => {
       setSetpieces(data.routines);
     }))) return;
 
-    if (!(await loadStep(() => getTeamNetwork(teamId, ANALYSIS_GAMES, 3), (data) => {
+    if (!(await loadStep(() => teamNetwork(teamId, ANALYSIS_GAMES, 3), (data) => {
       setHubs(data.hubs);
     }))) return;
 
-    if (!(await loadStep(() => getTeamPhases(teamId, ANALYSIS_GAMES), (data) => {
+    if (!(await loadStep(() => teamPhases(teamId, ANALYSIS_GAMES), (data) => {
       setPhases(data.phases);
     }))) return;
 
@@ -191,15 +191,15 @@ export default function Home() {
       setRecentMatches(data.matches);
     }))) return;
 
-    if (!(await loadStep(() => getTeamAnalysis(teamId, ANALYSIS_GAMES), (data) => {
-      setTeamAnalysis(data);
+    if (!(await loadStep(() => teamAnalysis(teamId, ANALYSIS_GAMES), (data) => {
+      setAnalysis(data);
     }))) return;
 
-    if (!(await loadStep(() => getNetworkGraph(teamId, ANALYSIS_GAMES), (data) => {
+    if (!(await loadStep(() => netGraph(teamId, ANALYSIS_GAMES), (data) => {
       setNetworkGraph(data.graph);
     }))) return;
 
-    await loadStep(() => getTeamVAEP(teamId, ANALYSIS_GAMES), (data) => {
+    await loadStep(() => teamVAEP(teamId, ANALYSIS_GAMES), (data) => {
       setVaepData(data);
     });
 
@@ -267,7 +267,7 @@ export default function Home() {
     setReplayLoading(true);
     setIsPlaying(false);
     try {
-      const data = await getPhaseReplay(teamId, phaseId, ANALYSIS_GAMES);
+      const data = await phaseReplay(teamId, phaseId, ANALYSIS_GAMES);
       if (analysisToken.current !== token) return;
       setReplayEvents(data.events);
       setSelectedPhase(phaseId);
@@ -292,7 +292,7 @@ export default function Home() {
     }
   }
 
-  const getRankClass = (rank: number, total: number) => {
+  const rankClass = (rank: number, total: number) => {
     if (rank === 1) return 'rank-1';
     if (rank === 2) return 'rank-2';
     if (rank === 3) return 'rank-3';
@@ -302,7 +302,7 @@ export default function Home() {
   };
 
   // 팀 로고 파일명 매핑
-  const getTeamLogo = (teamName: string) => {
+  const teamLogo = (teamName: string) => {
     const logoMap: Record<string, string> = {
       '울산 HD FC': '울산 HD FC.png',
       '전북 현대 모터스': '전북 현대 모터스.png',
@@ -356,7 +356,7 @@ export default function Home() {
     const key = `${ourTeam.team_id}-${oppTeam.team_id}`;
     setSimLoading(true);
     try {
-      const result = await runPreMatchSimulation(ourTeam.team_id, oppTeam.team_id, ANALYSIS_GAMES);
+      const result = await preMatch(ourTeam.team_id, oppTeam.team_id, ANALYSIS_GAMES);
       if (simToken.current !== token) return;
       simCacheRef.current[key] = result;
       setSimResult(result);
@@ -385,12 +385,12 @@ export default function Home() {
     simKeyRef.current = null;
   };
 
-  const toPct = (val: number) => {
+  const pct = (val: number) => {
     if (!Number.isFinite(val)) return 0;
-    const pct = Math.abs(val) <= 1 ? val * 100 : val;
-    return Math.max(-100, Math.min(100, pct));
+    const p = Math.abs(val) <= 1 ? val * 100 : val;
+    return Math.max(-100, Math.min(100, p));
   };
-  const fmtPct = (val: number) => `${toPct(val).toFixed(1)}%`;
+  const fmtPct = (val: number) => `${pct(val).toFixed(1)}%`;
   const sf = (val: number, d: number = 1) => Number.isFinite(val) ? val.toFixed(d) : (0).toFixed(d);
   const scenarios = simResult?.scenarios ?? [];
   const pickScenarioForTactic = (tactic: string) => {
@@ -434,9 +434,9 @@ export default function Home() {
       );
     }
     const rows = [
-      { label: '승', value: toPct(prediction.win), color: '#16a34a' },
-      { label: '무', value: toPct(prediction.draw), color: '#f59e0b' },
-      { label: '패', value: toPct(prediction.lose), color: '#ef4444' },
+      { label: '승', value: pct(prediction.win), color: '#16a34a' },
+      { label: '무', value: pct(prediction.draw), color: '#f59e0b' },
+      { label: '패', value: pct(prediction.lose), color: '#ef4444' },
     ];
     return (
       <div className={styles.probRows}>
@@ -502,11 +502,11 @@ export default function Home() {
                 className={`team-row ${selectedTeam?.team_id === team.team_id ? 'active' : ''}`}
                 onClick={() => setSelectedTeam(team)}
               >
-                <span className={`rank ${getRankClass(team.rank, standings.length)}`}>
+                <span className={`rank ${rankClass(team.rank, standings.length)}`}>
                   {team.rank}
                 </span>
                 <Image
-                  src={getTeamLogo(team.team_name)}
+                  src={teamLogo(team.team_name)}
                   alt={team.team_name}
                   className="team-logo"
                   width={24}
@@ -583,7 +583,7 @@ export default function Home() {
             <div className="team-top">
               <div className="team-header">
                 <Image
-                  src={getTeamLogo(selectedTeam.team_name)}
+                  src={teamLogo(selectedTeam.team_name)}
                   alt={selectedTeam.team_name}
                   className="team-header-logo"
                   width={64}
@@ -672,7 +672,7 @@ export default function Home() {
                   {/* 팀 AI 분석 */}
                   <div className={styles.analysisSection}>
                     <div className={`card ${styles.teamAnalysisCard}`}>
-                      {!teamAnalysis ? (
+                      {!analysis ? (
                         <div className={styles.panelPlaceholder}>
                           AI 팀 분석 불러오는 중...
                         </div>
@@ -683,22 +683,22 @@ export default function Home() {
                             <span
                               className={styles.teamAnalysisBadge}
                               style={{
-                                background: teamAnalysis.overall_score >= 70 ? '#16a34a' : teamAnalysis.overall_score >= 50 ? '#f59e0b' : '#dc2626',
+                                background: analysis.overall_score >= 70 ? '#16a34a' : analysis.overall_score >= 50 ? '#f59e0b' : '#dc2626',
                               }}
                             >
-                              {teamAnalysis.overall_score}점
+                              {analysis.overall_score}점
                             </span>
                           </div>
 
                           <p className={styles.teamAnalysisSummary}>
-                            {teamAnalysis.summary}
+                            {analysis.summary}
                           </p>
 
                           <div className={styles.analysisSplitGrid}>
                             {/* 강점 */}
                             <div className={styles.strengthCard}>
                               <h4 className={styles.strengthTitle}>💪 강점</h4>
-                              {teamAnalysis.strengths.length > 0 ? teamAnalysis.strengths.map((s, i) => (
+                              {analysis.strengths.length > 0 ? analysis.strengths.map((s, i) => (
                                 <div key={i} className={styles.analysisItem}>
                                   <div className={styles.analysisItemHead}>
                                     <span className={styles.strengthItemTitle}>{s.title}</span>
@@ -712,7 +712,7 @@ export default function Home() {
                             {/* 약점 */}
                             <div className={styles.weaknessCard}>
                               <h4 className={styles.weaknessTitle}>⚠️ 개선 필요</h4>
-                              {teamAnalysis.weaknesses.length > 0 ? teamAnalysis.weaknesses.map((w, i) => (
+                              {analysis.weaknesses.length > 0 ? analysis.weaknesses.map((w, i) => (
                                 <div key={i} className={styles.analysisItem}>
                                   <div className={styles.analysisItemHead}>
                                     <span className={styles.weaknessItemTitle}>{w.title}</span>
@@ -725,9 +725,9 @@ export default function Home() {
                           </div>
 
                           {/* 인사이트 */}
-                          {teamAnalysis.insights.length > 0 && (
+                          {analysis.insights.length > 0 && (
                             <div className={styles.insightsBox}>
-                              {teamAnalysis.insights.map((insight, i) => (
+                              {analysis.insights.map((insight, i) => (
                                 <div key={i} className={styles.insightItem}>
                                   {insight}
                                 </div>
@@ -1079,7 +1079,7 @@ export default function Home() {
                             className={`${styles.opponentButton} ${isActive ? styles.opponentButtonActive : ''} ${isSelf ? styles.opponentButtonDisabled : ''}`}
                           >
                             <Image
-                              src={getTeamLogo(team.team_name)}
+                              src={teamLogo(team.team_name)}
                               alt={team.team_name}
                               className={styles.opponentLogo}
                               width={20}
@@ -1102,7 +1102,7 @@ export default function Home() {
                         <div className={styles.matchupRow}>
                           <div className={styles.matchupTeam}>
                             <Image
-                              src={getTeamLogo(selectedTeam.team_name)}
+                              src={teamLogo(selectedTeam.team_name)}
                               alt={selectedTeam.team_name}
                               className="team-logo-lg"
                               width={48}
@@ -1123,7 +1123,7 @@ export default function Home() {
                                   <div className={styles.matchupTeamMeta}>{opponent.rank}위 · {opponent.points}점</div>
                                 </div>
                                 <Image
-                                  src={getTeamLogo(opponent.team_name)}
+                                  src={teamLogo(opponent.team_name)}
                                   alt={opponent.team_name}
                                   className="team-logo-lg"
                                   width={48}
@@ -1155,7 +1155,7 @@ export default function Home() {
                       </div>
                     ) : simResult ? (
                       <div className={styles.improvement}>
-                        승률 개선 {simResult.win_improvement >= 0 ? '+' : ''}{toPct(simResult.win_improvement).toFixed(1)}%p
+                        승률 개선 {simResult.win_improvement >= 0 ? '+' : ''}{pct(simResult.win_improvement).toFixed(1)}%p
                         {simUpdating && <span className={styles.updateTag}>업데이트 중</span>}
                       </div>
                     ) : null}
@@ -1198,7 +1198,7 @@ export default function Home() {
                                           <span>승</span> {fmtPct(relatedScenario.before.win)} → {fmtPct(relatedScenario.after.win)}
                                           <span className={styles.tacticScenarioDelta}>
                                             {relatedScenario.win_change >= 0 ? '+' : ''}
-                                            {toPct(relatedScenario.win_change).toFixed(1)}%p
+                                            {pct(relatedScenario.win_change).toFixed(1)}%p
                                           </span>
                                         </div>
                                         <div className={styles.tacticScenarioNote}>{relatedScenario.recommendation}</div>
@@ -1228,7 +1228,7 @@ export default function Home() {
                                 <div className={styles.scenarioTitleRow}>
                                   <div className={styles.scenarioTitle}>{sc.scenario}</div>
                                   <div className={styles.scenarioDeltaBadge}>
-                                    {sc.win_change >= 0 ? '+' : ''}{toPct(sc.win_change).toFixed(1)}%p
+                                    {sc.win_change >= 0 ? '+' : ''}{pct(sc.win_change).toFixed(1)}%p
                                   </div>
                                 </div>
                                 <div className={styles.scenarioDesc}>{sc.description}</div>

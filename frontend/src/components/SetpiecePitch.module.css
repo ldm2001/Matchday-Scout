@@ -1,7 +1,264 @@
-.pitchSvg {
-    max-width: 100%;
-    display: block;
-    border: 1px solid #e2e8f0;
-    border-radius: 6px;
+/* K리그 문자중계 스타일 세트피스 피치 */
+
+.pitchFrame {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+    border-radius: 14px;
+    overflow: hidden;
+    background: linear-gradient(180deg, #1a3d1a 0%, #122d12 100%);
+    box-shadow:
+        0 12px 28px rgba(0, 0, 0, 0.32),
+        inset 0 0 0 1px rgba(255, 255, 255, 0.05);
+    font-family: "Inter", "IBM Plex Sans KR", system-ui, sans-serif;
     margin-bottom: 10px;
+    isolation: isolate;
+}
+
+/* ───── 상단 정보 바 ───── */
+.headerBar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 10px 14px 8px;
+    background: linear-gradient(180deg, rgba(0, 0, 0, 0.55) 0%, rgba(0, 0, 0, 0.05) 100%);
+    color: #fff;
+    z-index: 2;
+}
+
+.timePill {
+    flex-shrink: 0;
+    padding: 4px 10px;
+    border-radius: 999px;
+    background: rgba(0, 0, 0, 0.55);
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    color: #fff;
+    backdrop-filter: blur(4px);
+}
+
+.kickerCard {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 12px;
+    border-radius: 999px;
+    background: linear-gradient(135deg, #16a34a 0%, #15803d 100%);
+    box-shadow: 0 3px 10px rgba(22, 163, 74, 0.45);
+    color: #fff;
+    font-size: 12px;
+    font-weight: 700;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.kickerIcon {
+    font-size: 13px;
+    line-height: 1;
+}
+
+.kickerName {
+    line-height: 1.2;
+    white-space: nowrap;
+}
+
+/* ───── SVG 피치 ───── */
+.pitchSvg {
+    display: block;
+    width: 100%;
+    height: auto;
+    aspect-ratio: 105 / 68;
+    z-index: 1;
+}
+
+.line {
+    fill: none;
+    stroke: rgba(255, 255, 255, 0.85);
+    stroke-width: 0.22;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+
+.spot {
+    fill: rgba(255, 255, 255, 0.85);
+}
+
+.cornerDot {
+    fill: #ef4444;
+    filter: drop-shadow(0 0 0.3px rgba(239, 68, 68, 0.9));
+}
+
+/* ───── 영향 콘 구역 ───── */
+.coneZone {
+    opacity: 0.85;
+    animation: coneFade 3s ease-in-out infinite;
+}
+
+@keyframes coneFade {
+    0%, 100% { opacity: 0.7; }
+    50% { opacity: 1; }
+}
+
+/* ───── 패스 라인 ───── */
+.pathBase {
+    stroke: rgba(255, 255, 255, 0.5);
+    stroke-width: 1.4;
+    stroke-linecap: round;
+}
+
+.pathLine {
+    stroke: var(--kg-accent, #22d3ee);
+    stroke-width: 0.75;
+    stroke-dasharray: 2.4 1.2;
+    stroke-linecap: round;
+    animation: pathFlow 1.4s linear infinite;
+}
+
+@keyframes pathFlow {
+    to { stroke-dashoffset: -7.2; }
+}
+
+/* ───── 타겟존 ───── */
+.targetOuter {
+    fill: none;
+    stroke: rgba(var(--kg-accent-rgb, 34, 211, 238), 0.45);
+    stroke-width: 0.25;
+    stroke-dasharray: 1.2 1.2;
+    transform-box: fill-box;
+    transform-origin: center;
+    animation: ringPulse 2s ease-in-out infinite;
+}
+
+@keyframes ringPulse {
+    0%, 100% { opacity: 0.5; transform: scale(1); }
+    50% { opacity: 1; transform: scale(1.18); }
+}
+
+.targetZone {
+    fill: rgba(var(--kg-accent-rgb, 34, 211, 238), 0.22);
+    stroke: rgba(var(--kg-accent-rgb, 34, 211, 238), 0.85);
+    stroke-width: 0.35;
+}
+
+.targetCenter {
+    fill: var(--kg-accent, #22d3ee);
+    stroke: rgba(255, 255, 255, 0.95);
+    stroke-width: 0.25;
+}
+
+/* ───── 킥지점 ───── */
+.kickPulse {
+    fill: rgba(255, 255, 255, 0.22);
+    transform-box: fill-box;
+    transform-origin: center;
+    animation: kickPulse 1.8s ease-out infinite;
+}
+
+@keyframes kickPulse {
+    0% { transform: scale(0.4); opacity: 0.95; }
+    100% { transform: scale(1.7); opacity: 0; }
+}
+
+.kickRing {
+    fill: rgba(255, 255, 255, 0.96);
+    stroke: rgba(0, 0, 0, 0.3);
+    stroke-width: 0.18;
+}
+
+.kickDot {
+    fill: #1a1a1a;
+}
+
+/* ───── 움직이는 볼 ───── */
+.movingBall {
+    fill: #ffffff;
+    stroke: #1a1a1a;
+    stroke-width: 0.18;
+    filter: drop-shadow(0 0.3px 0.6px rgba(0, 0, 0, 0.55));
+}
+
+/* ───── 타겟존 라벨 ───── */
+.zoneLabelBg {
+    fill: rgba(0, 0, 0, 0.72);
+    stroke: rgba(255, 255, 255, 0.18);
+    stroke-width: 0.15;
+}
+
+.zoneLabelText {
+    fill: #ffffff;
+    font-size: 1.7px;
+    font-weight: 700;
+    text-anchor: middle;
+    dominant-baseline: middle;
+    letter-spacing: 0.04em;
+}
+
+/* ───── 하단 통계 바 ───── */
+.footerBar {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 16px;
+    padding: 10px 14px;
+    background: linear-gradient(0deg, rgba(0, 0, 0, 0.55) 0%, rgba(0, 0, 0, 0.05) 100%);
+    color: #fff;
+    z-index: 2;
+}
+
+.statBlock {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 1px;
+    min-width: 56px;
+}
+
+.statValue {
+    font-size: 14px;
+    font-weight: 800;
+    line-height: 1.1;
+    color: #fff;
+    letter-spacing: -0.01em;
+}
+
+.statLabel {
+    font-size: 10px;
+    font-weight: 600;
+    color: rgba(255, 255, 255, 0.62);
+    letter-spacing: 0.04em;
+}
+
+.statDivider {
+    width: 1px;
+    height: 22px;
+    background: rgba(255, 255, 255, 0.18);
+}
+
+/* ───── 반응형 ───── */
+@media (max-width: 640px) {
+    .headerBar {
+        flex-wrap: wrap;
+        padding: 8px 10px 6px;
+    }
+
+    .timePill,
+    .kickerCard {
+        font-size: 11px;
+    }
+
+    .footerBar {
+        gap: 10px;
+        padding: 8px 10px;
+    }
+
+    .statValue {
+        font-size: 13px;
+    }
+
+    .statLabel {
+        font-size: 9px;
+    }
 }

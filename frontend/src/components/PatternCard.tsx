@@ -12,7 +12,7 @@ interface PatternCardProps {
 // 패턴 순위, 슈팅 전환율, 평균 패스/시간 및 주요 시퀀스 표시
 export default function PatternCard({ pattern, rank, onViewReplay }: PatternCardProps) {
     // 순위별 배지 색상 반환
-    const getRankBadge = (rank: number) => {
+    const rankBadge = (rank: number) => {
         const colors: Record<number, string> = {
             1: 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30',
             2: 'bg-slate-400/20 text-slate-300 border-slate-400/30',
@@ -22,7 +22,7 @@ export default function PatternCard({ pattern, rank, onViewReplay }: PatternCard
     };
 
     // 슈팅 전환율에 따른 텍스트 강조 색상 반환
-    const getConversionColor = (rate: number) => {
+    const convColor = (rate: number) => {
         if (rate >= 0.2) return 'text-red-400';
         if (rate >= 0.1) return 'text-yellow-400';
         return 'text-slate-400';
@@ -32,7 +32,7 @@ export default function PatternCard({ pattern, rank, onViewReplay }: PatternCard
         <div className="card card-hover animate-fade-in">
             <div className="flex items-start justify-between mb-4">
                 <div className="flex items-center gap-3">
-                    <span className={`px-2 py-1 text-xs font-bold rounded border ${getRankBadge(rank)}`}>
+                    <span className={`px-2 py-1 text-xs font-bold rounded border ${rankBadge(rank)}`}>
                         #{rank}
                     </span>
                     <div>
@@ -42,7 +42,7 @@ export default function PatternCard({ pattern, rank, onViewReplay }: PatternCard
                         </p>
                     </div>
                 </div>
-                <span className={`text-2xl font-bold ${getConversionColor(pattern.shot_conversion_rate)}`}>
+                <span className={`text-2xl font-bold ${convColor(pattern.shot_conversion_rate)}`}>
                     {(pattern.shot_conversion_rate * 100).toFixed(1)}%
                 </span>
             </div>

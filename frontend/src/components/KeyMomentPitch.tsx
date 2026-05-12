@@ -22,18 +22,18 @@ const safeNum = (val: unknown, defaultVal: number): number => {
     return isNaN(num) || !isFinite(num) ? defaultVal : num;
 };
 
-// 숫자형 반환 헬퍼 함수 (유효하지 않으면 null)
-const toNum = (val: unknown): number | null => {
+// 숫자 변환 유효성 실패면 null
+const num = (val: unknown): number | null => {
     if (val === null || val === undefined) return null;
-    const num = Number(val);
-    return Number.isFinite(num) ? num : null;
+    const n = Number(val);
+    return Number.isFinite(n) ? n : null;
 };
 
-// 백분율(Percentage) 변환 헬퍼 (소수점일 경우 * 100 적용)
-const toPct = (val: unknown): number | null => {
-    const num = toNum(val);
-    if (num === null) return null;
-    return num <= 1 ? num * 100 : num;
+// 백분율 변환 소수면 100배
+const pct = (val: unknown): number | null => {
+    const v = num(val);
+    if (v === null) return null;
+    return v <= 1 ? v * 100 : v;
 };
 
 // 의미 없는 문자열(Null, None 등)을 걸러내는 텍스트 변환 헬퍼
@@ -77,15 +77,26 @@ function MiniPitch3D({ moment }: { moment: KeyMoment }) {
                 {/* Lines */}
                 <svg viewBox="0 0 150 97" className={styles.miniPitchSvg}>
                     {/* Outline */}
-                    <rect x="2" y="2" width="146" height="93" fill="none" stroke="#cbd5e1" strokeWidth="1.5" />
+                    <rect x="2" y="2" width="146" height="93" fill="none" stroke="rgba(255,255,255,0.85)" strokeWidth="1.2" />
                     {/* Center line */}
-                    <line x1="75" y1="2" x2="75" y2="95" stroke="#cbd5e1" strokeWidth="1" />
+                    <line x1="75" y1="2" x2="75" y2="95" stroke="rgba(255,255,255,0.85)" strokeWidth="0.9" />
                     {/* Center circle */}
-                    <circle cx="75" cy="48.5" r="12" fill="none" stroke="#cbd5e1" strokeWidth="1" />
+                    <circle cx="75" cy="48.5" r="12" fill="none" stroke="rgba(255,255,255,0.85)" strokeWidth="0.9" />
+                    {/* Center spot */}
+                    <circle cx="75" cy="48.5" r="0.8" fill="rgba(255,255,255,0.85)" />
+                    {/* Left penalty box */}
+                    <rect x="2" y="20" width="22" height="57" fill="none" stroke="rgba(255,255,255,0.85)" strokeWidth="0.9" />
+                    {/* Left goal box */}
+                    <rect x="2" y="33" width="8" height="31" fill="none" stroke="rgba(255,255,255,0.85)" strokeWidth="0.9" />
                     {/* Right penalty box */}
-                    <rect x="126" y="20" width="22" height="57" fill="none" stroke="#cbd5e1" strokeWidth="1" />
+                    <rect x="126" y="20" width="22" height="57" fill="none" stroke="rgba(255,255,255,0.85)" strokeWidth="0.9" />
                     {/* Right goal box */}
-                    <rect x="140" y="33" width="8" height="31" fill="none" stroke="#cbd5e1" strokeWidth="1" />
+                    <rect x="140" y="33" width="8" height="31" fill="none" stroke="rgba(255,255,255,0.85)" strokeWidth="0.9" />
+                    {/* Corner red dots */}
+                    <circle cx="2" cy="2" r="1.6" fill="#ef4444" />
+                    <circle cx="148" cy="2" r="1.6" fill="#ef4444" />
+                    <circle cx="2" cy="95" r="1.6" fill="#ef4444" />
+                    <circle cx="148" cy="95" r="1.6" fill="#ef4444" />
                 </svg>
 
                 {/* Actual marker (red) */}
@@ -162,7 +173,7 @@ function Modal3D({ moment, onClose, teamName }: { moment: KeyMoment; onClose: ()
         y: safeNum(moment.suggestion?.target_position?.y || moment.suggestion?.target_y, actualPos.y),
     };
     const shiftDistance = Math.hypot(targetPos.x - actualPos.x, targetPos.y - actualPos.y);
-    const distanceRaw = toNum(moment.original_situation?.distance_to_goal);
+    const distanceRaw = num(moment.original_situation?.distance_to_goal);
     const goalDistance = distanceRaw ?? Math.hypot(105 - actualPos.x, 34 - actualPos.y);
     const actualCoord = `${actualPos.x.toFixed(1)}m, ${actualPos.y.toFixed(1)}m`;
     const targetCoord = `${targetPos.x.toFixed(1)}m, ${targetPos.y.toFixed(1)}m`;
@@ -170,8 +181,8 @@ function Modal3D({ moment, onClose, teamName }: { moment: KeyMoment; onClose: ()
     const goalLabel = `${goalDistance.toFixed(1)}m`;
 
     // 실제 xG 수치 및 AI 추천으로 얻을 수 있는 xG 향상분(Delta) 계산
-    const actualXg = toPct(moment.failure_analysis?.xg);
-    const expectedXg = toPct(moment.suggestion?.expected_xg);
+    const actualXg = pct(moment.failure_analysis?.xg);
+    const expectedXg = pct(moment.suggestion?.expected_xg);
     const deltaXg = actualXg !== null && expectedXg !== null ? expectedXg - actualXg : null;
     const deltaLabel = deltaXg !== null
         ? `${deltaXg > 0 ? '+' : ''}${deltaXg.toFixed(1)}%p`

@@ -1,8 +1,5 @@
 #!/usr/bin/env python3
-# VAEP 모델 디스크 캐시 사전 빌드 스크립트.
-# 데이터(events/matches) 갱신 후 1회 실행해 backend/.cache/vaep/*.pkl 을 갱신한다.
-# 산출물 .pkl 은 git tracking 되어 첫 사용자 cold-start 비용(~3분) 을 ~5초로 압축한다.
-#
+# 데이터 갱신 후 VAEP 모델 디스크 캐시 재생성
 # 사용법: cd backend && python scripts/prewarm_vaep.py
 from __future__ import annotations
 
@@ -10,7 +7,7 @@ import sys
 import time
 from pathlib import Path
 
-# backend 루트를 import path 에 추가 (이 스크립트는 backend/scripts/ 하위)
+# backend 루트를 임포트 경로에 추가
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
@@ -29,7 +26,7 @@ def main() -> int:
     print("[prewarm] VAEP 듀얼 모델 학습 시작 (CatBoost 400 iter x 2)")
     models = vaep_models()
     elapsed = time.time() - t0
-    print(f"[prewarm] 학습/저장 완료 ({elapsed:.1f}s)")
+    print(f"[prewarm] 학습 및 저장 완료 ({elapsed:.1f}s)")
     print(f"[prewarm] 메트릭: {models.metrics}")
     return 0
 

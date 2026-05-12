@@ -3,7 +3,7 @@
 
 import { useState, useEffect } from 'react';
 import { Team } from '@/types';
-import { getTeams } from '@/lib/api';
+import { teams } from '@/lib/api';
 
 interface TeamSelectorProps {
     selectedTeam: Team | null;
@@ -12,7 +12,7 @@ interface TeamSelectorProps {
 
 // API에서 팀 목록을 불러와 드롭다운으로 선택 가능하게 표시
 export default function TeamSelector({ selectedTeam, onTeamSelect }: TeamSelectorProps) {
-    const [teams, setTeams] = useState<Team[]>([]);
+    const [list, setList] = useState<Team[]>([]);
     const [isOpen, setIsOpen] = useState(false);
     const [loading, setLoading] = useState(true);
 
@@ -20,8 +20,8 @@ export default function TeamSelector({ selectedTeam, onTeamSelect }: TeamSelecto
     useEffect(() => {
         async function loadTeams() {
             try {
-                const data = await getTeams();
-                setTeams(data.teams);
+                const data = await teams();
+                setList(data.teams);
             } catch (error) {
                 console.error('Failed to load teams:', error);
             } finally {
@@ -60,7 +60,7 @@ export default function TeamSelector({ selectedTeam, onTeamSelect }: TeamSelecto
             {/* 드롭다운 메뉴 아이템 리스트 */}
             {isOpen && (
                 <div className="absolute z-50 w-64 mt-2 bg-slate-800 border border-slate-600 rounded-lg shadow-xl max-h-80 overflow-y-auto">
-                    {teams.map((team) => (
+                    {list.map((team) => (
                         <button
                             key={team.team_id}
                             onClick={() => {

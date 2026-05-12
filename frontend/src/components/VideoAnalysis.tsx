@@ -2,7 +2,7 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { getVideoJob, startVideoJob, uploadVideoJob, VideoJob, VideoMoment } from '@/lib/api';
+import { videoJob, videoNew, videoFile, VideoJob, VideoMoment } from '@/lib/api';
 import styles from './VideoAnalysis.module.css';
 
 // 유튜브 URL에서 비디오 ID 추출
@@ -343,7 +343,7 @@ export default function VideoAnalysis() {
     setErr('');
     setBusy(true);
     try {
-      const data = file ? await uploadVideoJob(file, url.trim()) : await startVideoJob(url.trim());
+      const data = file ? await videoFile(file, url.trim()) : await videoNew(url.trim());
       setJob(data);
       setSeek(null);
       setActiveTs(null);
@@ -370,7 +370,7 @@ export default function VideoAnalysis() {
     if (!['queued', 'run'].includes(jobStatus)) return;
     const timer = setInterval(async () => {
       try {
-        const fresh = await getVideoJob(jobKey);
+        const fresh = await videoJob(jobKey);
         setJob(fresh);
       } catch {
         clearInterval(timer);

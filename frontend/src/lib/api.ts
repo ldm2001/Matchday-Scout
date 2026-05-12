@@ -1,7 +1,7 @@
 // API 클라이언트 - 백엔드 API 호출 함수 모음
 
 // 브라우저 환경에서는 상대 경로, SSR에서는 환경 변수 사용
-const getApiBase = (): string => {
+const apiBase = (): string => {
     // 브라우저 환경: 상대 경로 사용 (Nginx 프록시)
     if (typeof window !== 'undefined') {
         return '';
@@ -32,7 +32,7 @@ async function fetchWithRetry(url: string, init?: RequestInit, retries: number =
 
 // GET 요청 래퍼
 async function fetchAPI<T>(endpoint: string): Promise<T> {
-    const API_BASE = getApiBase();
+    const API_BASE = apiBase();
 
     // 프로덕션 환경에서 잘못된 경로 감지
     if (typeof window !== 'undefined' && process.env.NODE_ENV === 'production') {
@@ -51,7 +51,7 @@ async function fetchAPI<T>(endpoint: string): Promise<T> {
 
 // POST 요청 래퍼
 async function postAPI<T>(endpoint: string, payload: unknown): Promise<T> {
-    const API_BASE = getApiBase();
+    const API_BASE = apiBase();
     const res = await fetchWithRetry(`${API_BASE}${endpoint}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -64,12 +64,12 @@ async function postAPI<T>(endpoint: string, payload: unknown): Promise<T> {
 }
 
 // 팀 목록 조회
-export async function getTeams() {
+export async function teams() {
     return fetchAPI<{ teams: import('@/types').Team[]; count: number }>('/api/teams/');
 }
 
 // 팀 순위표 조회
-export async function getTeamsOverview() {
+export async function teamsOverview() {
     return fetchAPI<{
         standings: Array<{
             team_id: number;
@@ -90,7 +90,7 @@ export async function getTeamsOverview() {
 }
 
 // 팀 상세 정보 조회
-export async function getTeamInfo(teamId: number) {
+export async function teamInfo(teamId: number) {
     return fetchAPI<{
         team_id: number;
         team_name: string;
@@ -106,7 +106,7 @@ export async function getTeamInfo(teamId: number) {
 }
 
 // 팀 공격 패턴 조회
-export async function getTeamPatterns(teamId: number, nGames: number = 5, nPatterns: number = 3) {
+export async function teamPatterns(teamId: number, nGames: number = 5, nPatterns: number = 3) {
     return fetchAPI<{
         team_id: number;
         n_games_analyzed: number;
@@ -116,7 +116,7 @@ export async function getTeamPatterns(teamId: number, nGames: number = 5, nPatte
 }
 
 // 팀 공격 페이즈 목록 조회
-export async function getTeamPhases(teamId: number, nGames: number = 5) {
+export async function teamPhases(teamId: number, nGames: number = 5) {
     return fetchAPI<{
         team_id: number;
         n_games_analyzed: number;
@@ -154,7 +154,7 @@ export interface TeamAnalysis {
 }
 
 // AI 기반 팀 강약점 분석 조회
-export async function getTeamAnalysis(teamId: number, nGames: number = 100) {
+export async function teamAnalysis(teamId: number, nGames: number = 100) {
     return fetchAPI<TeamAnalysis>(`/api/patterns/${teamId}/analysis?n_games=${nGames}`);
 }
 
@@ -183,12 +183,12 @@ export interface VAEPSummary {
 }
 
 // 팀 VAEP 분석 조회
-export async function getTeamVAEP(teamId: number, nGames: number = 100, nTop: number = 10) {
+export async function teamVAEP(teamId: number, nGames: number = 100, nTop: number = 10) {
     return fetchAPI<VAEPSummary>(`/api/patterns/${teamId}/vaep?n_games=${nGames}&n_top=${nTop}`);
 }
 
 // 공격 페이즈 리플레이 데이터 조회
-export async function getPhaseReplay(teamId: number, phaseId: number, nGames: number = 5) {
+export async function phaseReplay(teamId: number, phaseId: number, nGames: number = 5) {
     return fetchAPI<{
         phase_id: number;
         events: import('@/types').ReplayEvent[];
@@ -196,7 +196,7 @@ export async function getPhaseReplay(teamId: number, phaseId: number, nGames: nu
 }
 
 // 팀 세트피스 루틴 조회
-export async function getTeamSetpieces(teamId: number, nGames: number = 5, nTop: number = 2) {
+export async function teamSetpieces(teamId: number, nGames: number = 5, nTop: number = 2) {
     return fetchAPI<{
         team_id: number;
         n_games_analyzed: number;
@@ -206,7 +206,7 @@ export async function getTeamSetpieces(teamId: number, nGames: number = 5, nTop:
 }
 
 // 팀 빌드업 허브 조회
-export async function getTeamNetwork(teamId: number, nGames: number = 5, nHubs: number = 2) {
+export async function teamNetwork(teamId: number, nGames: number = 5, nHubs: number = 2) {
     return fetchAPI<{
         team_id: number;
         n_games_analyzed: number;
@@ -216,7 +216,7 @@ export async function getTeamNetwork(teamId: number, nGames: number = 5, nHubs: 
 }
 
 // 패스 네트워크 그래프 조회
-export async function getNetworkGraph(teamId: number, nGames: number = 5) {
+export async function netGraph(teamId: number, nGames: number = 5) {
     return fetchAPI<{
         team_id: number;
         n_games_analyzed: number;
@@ -225,7 +225,7 @@ export async function getNetworkGraph(teamId: number, nGames: number = 5) {
 }
 
 // 압박 시뮬레이션 실행
-export async function simulatePressing(teamId: number, playerId: number, nGames: number = 5) {
+export async function pressing(teamId: number, playerId: number, nGames: number = 5) {
     return fetchAPI<{
         team_id: number;
         target_player_id: number;
@@ -305,13 +305,13 @@ export interface VideoJob {
 }
 
 // URL로 비디오 분석 작업 시작
-export async function startVideoJob(url: string) {
+export async function videoNew(url: string) {
     return postAPI<VideoJob>('/api/video/jobs', { url });
 }
 
 // 파일 업로드로 비디오 분석 작업 시작
-export async function uploadVideoJob(file: File, url: string = '') {
-    const API_BASE = getApiBase();
+export async function videoFile(file: File, url: string = '') {
+    const API_BASE = apiBase();
     const form = new FormData();
     form.append('file', file);
     form.append('url', url);
@@ -333,12 +333,12 @@ export async function uploadVideoJob(file: File, url: string = '') {
 }
 
 // 비디오 분석 작업 상태 조회
-export async function getVideoJob(jobId: string) {
+export async function videoJob(jobId: string) {
     return fetchAPI<VideoJob>(`/api/video/jobs/${jobId}`);
 }
 
 // 전체 전술 분석 조회
-export async function getFullTacticalAnalysis(teamId: number, nGames: number = 5) {
+export async function tactics(teamId: number, nGames: number = 5) {
     return fetchAPI<{
         team_id: number;
         n_games_analyzed: number;
@@ -352,7 +352,7 @@ export async function getFullTacticalAnalysis(teamId: number, nGames: number = 5
 }
 
 // 경기 전 시뮬레이션 실행
-export async function runPreMatchSimulation(ourTeamId: number, opponentId: number, nGames: number = 5) {
+export async function preMatch(ourTeamId: number, opponentId: number, nGames: number = 5) {
     return postAPI<{
         our_team_id: number;
         opponent_id: number;

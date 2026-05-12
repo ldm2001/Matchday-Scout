@@ -28,7 +28,7 @@ interface PassNetworkProps {
 }
 
 // 포지션별 색상 반환
-const getPositionColor = (position: string): string => {
+const posColor = (position: string): string => {
     const pos = position.toUpperCase();
     if (pos.includes('GK')) return '#fbbf24';
     if (pos.includes('CB') || pos.includes('LB') || pos.includes('RB') || pos.includes('DF')) return '#3b82f6';
@@ -56,7 +56,7 @@ export default function PassNetwork({ nodes, edges }: PassNetworkProps) {
     };
 
     // 포지션별 기본 x좌표 (피치 좌표)
-    const getBaseX = (position: string): number => {
+    const baseX = (position: string): number => {
         const pos = position.toUpperCase();
         if (pos.includes('GK')) return 10;
         if (pos.includes('CB')) return 25;
@@ -76,7 +76,7 @@ export default function PassNetwork({ nodes, edges }: PassNetworkProps) {
     // 초기 위치: 포지션 기반 x, 실제 평균 y 사용
     const positions: { id: string; x: number; y: number }[] = nodes.map((node) => ({
         id: node.id,
-        x: toSvgX(getBaseX(node.position)),
+        x: toSvgX(baseX(node.position)),
         y: toSvgY(node.avg_y ?? 34)
     }));
 
@@ -113,7 +113,7 @@ export default function PassNetwork({ nodes, edges }: PassNetworkProps) {
     const maxWeight = Math.max(...edges.map(e => e.weight), 1);
 
     // 연결된 엣지 찾기
-    const getConnectedEdges = (nodeId: string) => {
+    const connEdges = (nodeId: string) => {
         return edges.filter(e => e.source === nodeId || e.target === nodeId);
     };
 
@@ -212,7 +212,7 @@ export default function PassNetwork({ nodes, edges }: PassNetworkProps) {
 
                     const isHovered = hoveredNode === node.id;
                     const isConnected = hoveredNode &&
-                        getConnectedEdges(hoveredNode).some(
+                        connEdges(hoveredNode).some(
                             e => e.source === node.id || e.target === node.id
                         );
                     const isDimmed = hoveredNode && !isHovered && !isConnected;
@@ -240,7 +240,7 @@ export default function PassNetwork({ nodes, edges }: PassNetworkProps) {
                                 cx={pos.x}
                                 cy={pos.y}
                                 r={radius}
-                                fill={getPositionColor(node.position)}
+                                fill={posColor(node.position)}
                                 stroke={isHovered ? '#fbbf24' : 'white'}
                                 strokeWidth={isHovered ? 3 : 2}
                                 opacity={isDimmed ? 0.4 : 1}

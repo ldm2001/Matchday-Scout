@@ -10,7 +10,7 @@ interface SetPieceCardProps {
 // 세트피스 유형, 스윙 타입, 타겟존 및 수비 제안 표시
 export default function SetPieceCard({ routine }: SetPieceCardProps) {
     // 세트피스 유형별 아이콘 반환
-    const getTypeIcon = (type: string) => {
+    const typeIcon = (type: string) => {
         if (type.includes('Corner')) {
             return (
                 <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -27,7 +27,7 @@ export default function SetPieceCard({ routine }: SetPieceCardProps) {
     };
 
     // 타겟존(니어포스트/파포스트 등) 한글 라벨 변환
-    const getZoneLabel = (zone: string) => {
+    const zoneLabel = (zone: string) => {
         const labels: Record<string, string> = {
             'near_post': '니어 포스트',
             'far_post': '파 포스트',
@@ -38,7 +38,7 @@ export default function SetPieceCard({ routine }: SetPieceCardProps) {
     };
 
     // 스윙(궤적) 타입(인스윙/아웃스윙) 한글 라벨 변환
-    const getSwingLabel = (swing: string) => {
+    const swingLabel = (swing: string) => {
         if (swing === 'inswing') return '인스윙';
         if (swing === 'outswing') return '아웃스윙';
         return '기타';
@@ -50,14 +50,14 @@ export default function SetPieceCard({ routine }: SetPieceCardProps) {
                 <div className="flex items-center gap-3">
                     <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${routine.type.includes('Corner') ? 'bg-orange-500/20 text-orange-400' : 'bg-purple-500/20 text-purple-400'
                         }`}>
-                        {getTypeIcon(routine.type)}
+                        {typeIcon(routine.type)}
                     </div>
                     <div>
                         <h3 className="font-semibold text-white">
                             {routine.type.includes('Corner') ? '코너킥' : '프리킥'} 루틴
                         </h3>
                         <p className="text-sm text-slate-400">
-                            {getSwingLabel(routine.swing_type)} • {getZoneLabel(routine.primary_zone)}
+                            {swingLabel(routine.swing_type)} • {zoneLabel(routine.primary_zone)}
                         </p>
                     </div>
                 </div>
@@ -76,7 +76,7 @@ export default function SetPieceCard({ routine }: SetPieceCardProps) {
                     <p className="text-xs text-slate-400">발생 횟수</p>
                 </div>
                 <div className="p-2 bg-slate-800/50 rounded text-center">
-                    <p className="text-lg font-bold text-white">{getZoneLabel(routine.primary_zone)}</p>
+                    <p className="text-lg font-bold text-white">{zoneLabel(routine.primary_zone)}</p>
                     <p className="text-xs text-slate-400">주요 타겟</p>
                 </div>
             </div>

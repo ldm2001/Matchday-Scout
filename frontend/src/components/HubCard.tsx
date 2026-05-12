@@ -11,13 +11,13 @@ interface HubCardProps {
 // 허브 영향도에 따른 색상/라벨 표시 및 압박 시뮬레이션 버튼 제공
 export default function HubCard({ hub, onSimulate }: HubCardProps) {
     // 영향도 점수에 따른 색상 클래스 반환
-    const getImpactColor = (score: number) => {
+    const impactColor = (score: number) => {
         if (score >= 70) return 'text-red-400 bg-red-500/10';
         if (score >= 40) return 'text-yellow-400 bg-yellow-500/10';
         return 'text-blue-400 bg-blue-500/10';
     };
 
-    const getImpactLabel = (score: number) => {
+    const impactLabel = (score: number) => {
         if (score >= 70) return '최우선 타겟';
         if (score >= 40) return '효과적 타겟';
         return '보조 타겟';
@@ -35,8 +35,8 @@ export default function HubCard({ hub, onSimulate }: HubCardProps) {
                         <p className="text-sm text-slate-400">{hub.main_position} • 허브 점수 {(hub.hub_score * 100).toFixed(0)}</p>
                     </div>
                 </div>
-                <span className={`px-3 py-1 rounded-full text-xs font-semibold ${getImpactColor(hub.disruption_impact.impact_score)}`}>
-                    {getImpactLabel(hub.disruption_impact.impact_score)}
+                <span className={`px-3 py-1 rounded-full text-xs font-semibold ${impactColor(hub.disruption_impact.impact_score)}`}>
+                    {impactLabel(hub.disruption_impact.impact_score)}
                 </span>
             </div>
 

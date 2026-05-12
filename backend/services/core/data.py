@@ -1,4 +1,5 @@
 # 데이터 로더 - 엑셀 파일 로드 및 캐싱
+import hashlib
 import pandas as pd
 from pathlib import Path
 from functools import lru_cache
@@ -9,30 +10,26 @@ from .spadl import team_norm, spadl_map
 # 백엔드 최상위 경로 기준 3단계 위로 올라가 open_track 폴더를 데이터 디렉토리로 설정
 DATA_DIR = Path(__file__).resolve().parents[3] / "open_track"
 
-# 파일의 변경 상태를 확인하여 캐시 무효화에 사용할 스탬프(타임스탬프, 파일크기 튜플) 생성 함수
+# 파일 내용 해시 (size, sha256-prefix). mtime은 재계산 트리거로만 사용해 머신 간 일관 보장.
+@lru_cache(maxsize=8)
+def _file_mark(path_str: str, _mtime_ns: int, size: int) -> tuple:
+    h = hashlib.sha256()
+    with open(path_str, "rb") as f:
+        for chunk in iter(lambda: f.read(1 << 20), b""):
+            h.update(chunk)
+    return (size, h.hexdigest()[:16])
+
+def _path_mark(path: Path) -> tuple:
+    try:
+        st = path.stat()
+    except FileNotFoundError:
+        return (0, "")
+    return _file_mark(str(path), st.st_mtime_ns, st.st_size)
+
+# 파일 내용 기반 스탬프 (머신/체크아웃 시점에 무관)
 def data_stamp() -> tuple:
-    # 원시 이벤트 데이터 파일 경로
-    raw_path = DATA_DIR / "raw_data.csv"
-    # 경기 메타 정보 파일 경로
-    match_path = DATA_DIR / "match_info.csv"
-    
-    # raw_data.csv 파일의 상태 확인
-    try:
-        raw_stat = raw_path.stat()
-        raw_mark = (raw_stat.st_mtime_ns, raw_stat.st_size)
-    except FileNotFoundError:
-        # 파일이 없으면 0으로 폴백
-        raw_mark = (0, 0)
-        
-    # match_info.csv 파일의 상태 확인
-    try:
-        match_stat = match_path.stat()
-        match_mark = (match_stat.st_mtime_ns, match_stat.st_size)
-    except FileNotFoundError:
-        # 파일이 없으면 0으로 폴백
-        match_mark = (0, 0)
-        
-    # 두 파일의 상태값을 튜플로 묶어서 반환 (이 값이 바뀌면 캐시 갱신)
+    raw_mark = _path_mark(DATA_DIR / "raw_data.csv")
+    match_mark = _path_mark(DATA_DIR / "match_info.csv")
     return (raw_mark, match_mark)
 
 # 파일 상태 스탬프를 키로 사용하여 raw_data를 메모리에 캐싱 (최대 2개 버전 보관)
