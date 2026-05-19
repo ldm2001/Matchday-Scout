@@ -11,7 +11,8 @@
     box-shadow:
         0 12px 28px rgba(0, 0, 0, 0.32),
         inset 0 0 0 1px rgba(255, 255, 255, 0.05);
-    font-family: "Inter", "IBM Plex Sans KR", system-ui, sans-serif;
+    font-family: "Pretendard Variable", Pretendard, -apple-system, BlinkMacSystemFont, system-ui, "Apple SD Gothic Neo", "Noto Sans KR", sans-serif;
+    font-variant-numeric: tabular-nums;
     margin-bottom: 10px;
     isolation: isolate;
 }
@@ -70,7 +71,7 @@
     display: block;
     width: 100%;
     height: auto;
-    aspect-ratio: 105 / 68;
+    aspect-ratio: 131 / 74;
     z-index: 1;
 }
 

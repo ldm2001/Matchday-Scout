@@ -4,6 +4,7 @@ import numpy as np
 import math
 from typing import Dict, List
 from ..core.data import raw, matches
+from ..core.cache import layered_cache
 
 def num(value, default=0.0):
     if value is None:
@@ -183,6 +184,13 @@ def chance_log(game_id: int) -> Dict:
         analysis['summary'] = f"{loser_name} 패배 분석: 결과를 바꿀 수 있었던 찬스"
     
     return analysis
+
+
+# 게임별 찬스 분석 결과를 2-tier 캐시(L1 메모리 + L2 디스크)에 보관
+# game_id는 1경기당 1회 무거운 연산이므로 maxsize 넉넉히(512) 잡아 시즌 단위로 캐시
+@layered_cache("chance", maxsize=512)
+def chance_box(game_id: int, mark: tuple) -> Dict:
+    return chance_log(game_id)
 
 
 def match_log(team_id: int = None) -> List[Dict]:

@@ -2,11 +2,11 @@
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from typing import Optional
-from services.core.data import team_events, teams, data_stamp
+from services.core.data import team_events, teams, data_mark
 from services.sim.match import prematch as prematch_job
 from services.vaep.model import vals_box
 from services.sim.tactic import tactic_sim
-from services.analyzers.chance import chance_log, match_log
+from services.analyzers.chance import chance_box, match_log
 
 # 시뮬레이션 네임스페이스 라우터 할당
 router = APIRouter()
@@ -53,7 +53,7 @@ def prematch(request: PreMatchRequest):
 def vaep(team_id: int, n_games: int = 5):
     try:
         # 데이터 업데이트 핑거프린트 스탬프 도출
-        mark = data_stamp()
+        mark = data_mark()
         # vals_box에 해당 팀/경기의 VAEP 스탯 산출/히트 요청
         result = vals_box(team_id, n_games, 5, mark)
         # 결과 실패 시 404
@@ -98,6 +98,6 @@ def matches(team_id: int = None):
 @router.get("/matches/{game_id}/chances")
 def chances(game_id: int):
     try:
-        # 해당 게임 아이디만 필터링한 찬스 로깅 분석기 통과
-        return chance_log(game_id)
+        # 2-tier 캐시(L1+L2) 경유 찬스 분석 — 동일 game_id 재요청 시 디스크 hit
+        return chance_box(game_id, data_mark())
     except Exception as e: raise HTTPException(status_code=500, detail=str(e))

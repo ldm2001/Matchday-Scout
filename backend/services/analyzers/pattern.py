@@ -6,6 +6,7 @@ import numpy as np
 import pandas as pd
 from scipy.cluster.hierarchy import linkage, fcluster
 from scipy.spatial.distance import squareform
+from ..core.cache import layered_cache
 from ..core.spadl import action_rows, spadl_map
 from ..core.spec import Analyzer
 
@@ -517,3 +518,14 @@ def team_pat(events_df: pd.DataFrame, team_id: int, n_patterns: int = 3) -> List
     # 클러스터링 알고리즘 통과시키고 도출된 n개의 데이터 송출
     miner = PatternMiner(team_phases, n_patterns)
     return miner.data()
+
+
+# 캐싱 진입점: (team_id, n_games, top_k, mark) 기준 메모이즈
+# L1(메모리 single-flight) + L2(DiskCache pickle) 2단 — 재시작 후에도 L2 hit으로 콜드 스타트 회피
+@layered_cache("pat", maxsize=256)
+def pat_box(team_id: int, n_games: int, top_k: int, mark: tuple) -> List[Dict]:
+    from ..core.data import match_events
+    events = match_events(team_id, n_games, include_opponent=True, normalize_mode="team")
+    if len(events) == 0:
+        return []
+    return team_pat(events, team_id, top_k)

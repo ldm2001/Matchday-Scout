@@ -4,9 +4,8 @@ from __future__ import annotations
 # 표준 라이브러리
 import hashlib
 import logging
-import pickle
+import threading
 from dataclasses import dataclass
-from functools import lru_cache
 from pathlib import Path
 from typing import Dict, Iterable, List, Optional, Tuple
 
@@ -18,6 +17,8 @@ from sklearn.calibration import CalibratedClassifierCV
 from sklearn.metrics import accuracy_score, brier_score_loss, roc_auc_score
 
 # 같은 프로젝트 모듈
+from ..core.cache import single_flight
+from ..core.cache_store import DiskCache
 from ..core.data import data_stamp, match_events, matches, raw
 from ..core.spadl import (
     action_rows,
@@ -65,63 +66,37 @@ class VaepModels:
 
 _MODEL_CACHE: Dict[Tuple[Optional[pd.Timestamp], Tuple[int, ...]], VaepModels] = {}
 _MODEL_MARK: Optional[tuple] = None
+_CACHE_LOCK = threading.Lock()
 
-# 학습된 모델 저장 폴더 서버 재시작해도 유지
+# 학습된 모델 저장 폴더 서버 재시작해도 유지 - DiskCache 추상화 사용
 _DISK_CACHE_DIR = Path(__file__).resolve().parents[2] / ".cache" / "vaep"
+_VAEP_CACHE = DiskCache("vaep", "pickle", _DISK_CACHE_DIR)
 _LOG = logging.getLogger(__name__)
 
-# 데이터 스탬프 옵션으로 캐시 파일 경로 생성
-def _disk_cache_path(mark: tuple, date_key, drop_key: tuple) -> Path:
+# (mark, date_key, drop_key) 조합을 12+12자 키 문자열로 압축
+def _disk_key(mark: tuple, date_key, drop_key: tuple) -> str:
     mark_hash = hashlib.sha1(repr(mark).encode()).hexdigest()[:12]
     key_hash = hashlib.sha1(repr((date_key, drop_key)).encode()).hexdigest()[:12]
-    return _DISK_CACHE_DIR / f"vaep_{mark_hash}_{key_hash}.pkl"
+    return f"{mark_hash}_{key_hash}"
 
-# 데이터 바뀌면 이전 캐시 삭제
+def _mark_prefix(mark: tuple) -> str:
+    return hashlib.sha1(repr(mark).encode()).hexdigest()[:12] + "_"
+
+# 데이터 바뀌면 이전 generation 캐시 삭제 (현재 mark prefix만 보존)
 def _purge_disk_cache(current_mark: tuple) -> None:
-    if not _DISK_CACHE_DIR.exists():
-        return
-    current = hashlib.sha1(repr(current_mark).encode()).hexdigest()[:12]
-    for path in _DISK_CACHE_DIR.glob("vaep_*.pkl"):
-        parts = path.stem.split("_")
-        if len(parts) >= 3 and parts[1] != current:
-            try:
-                path.unlink()
-            except OSError:
-                pass
+    keep_prefix = _mark_prefix(current_mark)
+    _VAEP_CACHE.purge(lambda k: k.startswith(keep_prefix))
 
-# 디스크 캐시에서 모델 로드
+# DiskCache 경유 로드 - 인스턴스 검증 후 반환
 def _load_disk(mark: tuple, date_key, drop_key: tuple) -> Optional[VaepModels]:
-    path = _disk_cache_path(mark, date_key, drop_key)
-    if not path.exists():
-        return None
-    try:
-        with path.open("rb") as f:
-            obj = pickle.load(f)
-        if isinstance(obj, VaepModels):
-            _LOG.info("VAEP 디스크 캐시 적중: %s", path.name)
-            return obj
-        return None
-    except Exception as exc:
-        _LOG.warning("VAEP 디스크 캐시 로드 실패 (%s): %s", path.name, exc)
-        try:
-            path.unlink()
-        except OSError:
-            pass
-        return None
+    obj = _VAEP_CACHE.get(_disk_key(mark, date_key, drop_key))
+    if isinstance(obj, VaepModels):
+        return obj
+    return None
 
-
-# 학습된 모델 디스크에 저장
+# DiskCache 경유 저장
 def _save_disk(mark: tuple, date_key, drop_key: tuple, models: VaepModels) -> None:
-    try:
-        _DISK_CACHE_DIR.mkdir(parents=True, exist_ok=True)
-        path = _disk_cache_path(mark, date_key, drop_key)
-        tmp = path.with_suffix(".pkl.tmp")
-        with tmp.open("wb") as f:
-            pickle.dump(models, f, protocol=pickle.HIGHEST_PROTOCOL)
-        tmp.replace(path)
-        _LOG.info("VAEP 디스크 캐시 저장: %s", path.name)
-    except Exception as exc:
-        _LOG.warning("VAEP 디스크 캐시 저장 실패: %s", exc)
+    _VAEP_CACHE.put(_disk_key(mark, date_key, drop_key), models)
 
 
 def _num(value: object, default: float = 0.0) -> float:
@@ -366,24 +341,26 @@ def vaep_models(
 ) -> VaepModels:
     global _MODEL_MARK
     mark = data_stamp()
-    if _MODEL_MARK != mark:
-        _MODEL_CACHE.clear()
-        _MODEL_MARK = mark
-        _purge_disk_cache(mark)
+    with _CACHE_LOCK:
+        if _MODEL_MARK != mark:
+            _MODEL_CACHE.clear()
+            _MODEL_MARK = mark
+            _purge_disk_cache(mark)
 
-    date_key = pd.to_datetime(date_max) if date_max is not None else None
-    if drop_games:
-        drop_key = tuple(sorted({int(g) for g in drop_games if g is not None and not pd.isna(g)}))
-    else:
-        drop_key = ()
-    key = (date_key, drop_key)
-    if key in _MODEL_CACHE:
-        return _MODEL_CACHE[key]
+        date_key = pd.to_datetime(date_max) if date_max is not None else None
+        if drop_games:
+            drop_key = tuple(sorted({int(g) for g in drop_games if g is not None and not pd.isna(g)}))
+        else:
+            drop_key = ()
+        key = (date_key, drop_key)
+        if key in _MODEL_CACHE:
+            return _MODEL_CACHE[key]
 
-    # 메모리 캐시 미스면 디스크 캐시 확인 후 학습 비용 회피
+    # 메모리 캐시 미스면 디스크 캐시 확인 후 학습 비용 회피 (락 밖에서 수행)
     disk_models = _load_disk(mark, date_key, drop_key)
     if disk_models is not None:
-        _MODEL_CACHE[key] = disk_models
+        with _CACHE_LOCK:
+            _MODEL_CACHE[key] = disk_models
         return disk_models
 
     match_df = matches()[["game_id", "game_date"]].copy()
@@ -472,14 +449,16 @@ def vaep_models(
         "concede_baseline_accuracy": float(concede_baseline_acc),
     }
 
-    _MODEL_CACHE[key] = VaepModels(
+    models = VaepModels(
         scoring_model=scoring_model,
         conceding_model=conceding_model,
         feature_columns=features.columns.tolist(),
         metrics=metrics,
     )
-    _save_disk(mark, date_key, drop_key, _MODEL_CACHE[key])
-    return _MODEL_CACHE[key]
+    _save_disk(mark, date_key, drop_key, models)
+    with _CACHE_LOCK:
+        _MODEL_CACHE[key] = models
+    return models
 
 def _feat_events(events: pd.DataFrame) -> pd.DataFrame:
     features, _, _, _ = _feat_pack(events, k_actions=K_ACTIONS)
@@ -512,44 +491,34 @@ def vaep_vals(
     if len(events) == 0:
         return events
 
-    events["p_score"] = p_score
-    events["p_concede"] = p_concede
-    events["vaep_offensive"] = 0.0
-    events["vaep_defensive"] = 0.0
-    events["vaep_total"] = 0.0
+    p_score_arr = np.asarray(p_score, dtype=float)
+    p_concede_arr = np.asarray(p_concede, dtype=float)
+    events["p_score"] = p_score_arr
+    events["p_concede"] = p_concede_arr
 
-    for game_id in events["game_id"].unique():
-        mask = events["game_id"] == game_id
-        idxs = events.index[mask].tolist()
-        prev_team = None
-        prev_p_score = 0.0
-        prev_p_concede = 0.0
+    team_arr = pd.to_numeric(events["team_id"], errors="coerce").fillna(-1).astype(np.int64).to_numpy()
+    game_arr = pd.to_numeric(events["game_id"], errors="coerce").fillna(-1).astype(np.int64).to_numpy()
 
-        for idx in idxs:
-            team = int(events.at[idx, "team_id"])
-            if prev_team is None:
-                prev_score_for_team = 0.0
-                prev_concede_for_team = 0.0
-            elif team == prev_team:
-                prev_score_for_team = prev_p_score
-                prev_concede_for_team = prev_p_concede
-            else:
-                # 점유 바뀌면 상대 시점 확률 사용
-                prev_score_for_team = prev_p_concede
-                prev_concede_for_team = prev_p_score
+    # 한 칸 시프트로 직전 액션 확률/팀/경기 식별
+    prev_team = np.concatenate(([-1], team_arr[:-1]))
+    prev_game = np.concatenate(([-1], game_arr[:-1]))
+    prev_score = np.concatenate(([0.0], p_score_arr[:-1]))
+    prev_concede = np.concatenate(([0.0], p_concede_arr[:-1]))
 
-            curr_score = float(events.at[idx, "p_score"])
-            curr_concede = float(events.at[idx, "p_concede"])
-            vaep_off = curr_score - prev_score_for_team
-            vaep_def = -(curr_concede - prev_concede_for_team)
+    same_game = prev_game == game_arr
+    same_team = same_game & (prev_team == team_arr)
+    diff_team = same_game & (prev_team != team_arr)
 
-            events.at[idx, "vaep_offensive"] = vaep_off
-            events.at[idx, "vaep_defensive"] = vaep_def
-            events.at[idx, "vaep_total"] = vaep_off + vaep_def
+    # 같은 팀: 직전 확률 그대로, 다른 팀: 상대 시점이라 score/concede 스왑, 경기 시작: 0
+    prev_score_for_team = np.where(same_team, prev_score, np.where(diff_team, prev_concede, 0.0))
+    prev_concede_for_team = np.where(same_team, prev_concede, np.where(diff_team, prev_score, 0.0))
 
-            prev_team = team
-            prev_p_score = curr_score
-            prev_p_concede = curr_concede
+    vaep_off = p_score_arr - prev_score_for_team
+    vaep_def = -(p_concede_arr - prev_concede_for_team)
+
+    events["vaep_offensive"] = vaep_off
+    events["vaep_defensive"] = vaep_def
+    events["vaep_total"] = vaep_off + vaep_def
 
     return events
 
@@ -693,14 +662,14 @@ def team_vals(events: pd.DataFrame, team_id: int, n_top_actions: int = 5, guard:
         "metrics": metrics,
     }
 
-@lru_cache(maxsize=64)
+@single_flight(maxsize=64)
 def sum_box(team_id: int, n_games: int, n_top: int, mark: tuple) -> Dict:
     events = match_events(team_id, n_games, include_opponent=True, normalize_mode="none", spadl=False)
     if len(events) == 0:
         return {}
     return team_sum(events, team_id, n_top)
 
-@lru_cache(maxsize=64)
+@single_flight(maxsize=64)
 def vals_box(team_id: int, n_games: int, n_top_actions: int, mark: tuple) -> Dict:
     events = match_events(team_id, n_games, include_opponent=True, normalize_mode="none", spadl=False)
     if len(events) == 0:

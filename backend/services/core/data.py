@@ -1,14 +1,25 @@
 # 데이터 로더 - 엑셀 파일 로드 및 캐싱
 import hashlib
+import logging
+import threading
+import time
 import pandas as pd
 from pathlib import Path
 from functools import lru_cache
 
+_LOG = logging.getLogger(__name__)
+
 # SPADL 액션 체계 매핑 및 팀 데이터 정규화 함수 임포트
 from .spadl import team_norm, spadl_map
+from .cache_store import DiskCache
 
 # 백엔드 최상위 경로 기준 3단계 위로 올라가 open_track 폴더를 데이터 디렉토리로 설정
 DATA_DIR = Path(__file__).resolve().parents[3] / "open_track"
+
+# parquet 디스크 캐시 (DiskCache 추상화 사용)
+_DISK_CACHE_DIR = Path(__file__).resolve().parents[2] / ".cache" / "data"
+_RAW_CACHE = DiskCache("raw", "parquet", _DISK_CACHE_DIR)
+_MATCH_CACHE = DiskCache("matches", "parquet", _DISK_CACHE_DIR)
 
 # 파일 내용 해시 (size, sha256-prefix). mtime은 재계산 트리거로만 사용해 머신 간 일관 보장.
 @lru_cache(maxsize=8)
@@ -32,13 +43,40 @@ def data_stamp() -> tuple:
     match_mark = _path_mark(DATA_DIR / "match_info.csv")
     return (raw_mark, match_mark)
 
+# data_stamp() 결과를 TTL 동안 메모이즈 — 라우터마다 매 요청에서 sha256 재계산하는 비용 제거
+# 1초 TTL은 파일 갱신을 거의 즉시 반영하면서도 동일 요청 burst를 한 번에 처리
+_mark_cache: "tuple[float, tuple] | None" = None
+_mark_lock = threading.Lock()
+
+
+def data_mark(ttl: float = 1.0) -> tuple:
+    global _mark_cache
+    now = time.monotonic()
+    with _mark_lock:
+        if _mark_cache is not None and now - _mark_cache[0] < ttl:
+            return _mark_cache[1]
+        value = data_stamp()
+        _mark_cache = (now, value)
+        return value
+
+# 콘텐츠 해시(size, sha256[:16])를 안전한 파일명으로 변환
+def _disk_key(mark: tuple) -> str:
+    size, digest = mark
+    return f"{size}_{digest}"
+
 # 파일 상태 스탬프를 키로 사용하여 raw_data를 메모리에 캐싱 (최대 2개 버전 보관)
 @lru_cache(maxsize=2)
 def _raw(mark: tuple) -> pd.DataFrame:
-    # utf-8-sig 인코딩으로 BOM을 처리하며 CSV 로드
+    raw_mark, _ = mark
+    key = _disk_key(raw_mark)
+    # singleton 캐시: 현재 key 외 stale parquet은 즉시 정리 (cache hit 경로 포함)
+    _RAW_CACHE.purge(lambda k: k == key)
+    cached = _RAW_CACHE.get(key)
+    if cached is not None:
+        return cached
     df = pd.read_csv(DATA_DIR / "raw_data.csv", encoding='utf-8-sig')
-    # 컬럼명의 앞뒤 공백 및 잔여 BOM 문자를 제거하여 정제
     df.columns = df.columns.str.strip().str.replace('\ufeff', '')
+    _RAW_CACHE.put(key, df)
     return df
 
 # 최신 상태 스탬프를 발급받아 캐싱된 은닉 객체(_raw)를 호출하는 퍼사드 래퍼 함수
@@ -48,9 +86,16 @@ def raw() -> pd.DataFrame:
 # 경기 정보(match_info.csv)도 동일하게 스탬핑 기반으로 LRU 캐싱 처리
 @lru_cache(maxsize=2)
 def _matches(mark: tuple) -> pd.DataFrame:
+    _, match_mark = mark
+    key = _disk_key(match_mark)
+    # singleton 캐시: 현재 key 외 stale match parquet은 즉시 정리
+    _MATCH_CACHE.purge(lambda k: k == key)
+    cached = _MATCH_CACHE.get(key)
+    if cached is not None:
+        return cached
     df = pd.read_csv(DATA_DIR / "match_info.csv", encoding='utf-8-sig')
-    # 컬럼명 정제 로직 포함
     df.columns = df.columns.str.strip().str.replace('\ufeff', '')
+    _MATCH_CACHE.put(key, df)
     return df
 
 # 외부에서 호출하는 경기 정보 로드 함수

@@ -2,8 +2,8 @@ open_track
 open_track/
 __pycache__/
 *.pyc
-backend/cache/
-# backend/.cache/ 는 backend/.gitignore 에서 화이트리스트 처리 (vaep/*.pkl 만 추적)
+# backend/.cache/ 는 backend/.gitignore 에서 화이트리스트 처리 (vaep/*.pkl 만 추적, video/ 등은 ignore)
+/.cache/
 
 # 로컬 에이전트/작업 상태
 .omc/
@@ -12,8 +12,8 @@ backend/cache/
 **/.omc/
 **/.omx/
 
-# 로컬 워크플로우 스냅샷
-docs/.pdca-snapshots/
+# 로컬 PDCA 작업 공간 (plan/design/analysis/report/archive/snapshots/status)
+docs/
 
 # 환경변수 파일
 .env
@@ -22,6 +22,4 @@ docs/.pdca-snapshots/
 backend/.env
 frontend/.env
 frontend/.env.local
-docs/.bkit-memory.json
 backend/README.md
-docs/.pdca-status.json

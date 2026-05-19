@@ -225,7 +225,7 @@
   max-height: 90vh;
   overflow: hidden;
   border: 1px solid var(--stroke);
-  font-family: "IBM Plex Sans KR", "Pretendard", sans-serif;
+  font-family: "Pretendard Variable", Pretendard, -apple-system, BlinkMacSystemFont, system-ui, "Apple SD Gothic Neo", "Noto Sans KR", sans-serif;
 }
 
 .modalGlow {
@@ -439,7 +439,8 @@
   font-size: clamp(28px, 4vw, 40px);
   font-weight: 800;
   color: #13213a;
-  font-family: "Space Grotesk", "IBM Plex Sans KR", sans-serif;
+  font-family: "Pretendard Variable", Pretendard, -apple-system, BlinkMacSystemFont, system-ui, "Apple SD Gothic Neo", "Noto Sans KR", sans-serif;
+  font-variant-numeric: tabular-nums;
   letter-spacing: -0.02em;
   margin-top: 3px;
   line-height: 1;
@@ -453,6 +454,17 @@
   font-size: 11px;
   color: #8296ad;
   margin-top: 5px;
+}
+
+.scenarioNote {
+  margin-top: 10px;
+  padding: 10px 14px;
+  background: #f4f7fb;
+  border-left: 3px solid #94a3b8;
+  border-radius: 6px;
+  font-size: 12px;
+  line-height: 1.55;
+  color: #334155;
 }
 
 .scoreBridge {
@@ -478,7 +490,8 @@
   font-size: 28px;
   font-weight: 800;
   color: #0f5cc8;
-  font-family: "Space Grotesk", "IBM Plex Sans KR", sans-serif;
+  font-family: "Pretendard Variable", Pretendard, -apple-system, BlinkMacSystemFont, system-ui, "Apple SD Gothic Neo", "Noto Sans KR", sans-serif;
+  font-variant-numeric: tabular-nums;
   letter-spacing: -0.01em;
   line-height: 1.1;
 }
@@ -525,7 +538,8 @@
   font-size: 15px;
   font-weight: 800;
   color: #12213b;
-  font-family: "Space Grotesk", "IBM Plex Sans KR", sans-serif;
+  font-family: "Pretendard Variable", Pretendard, -apple-system, BlinkMacSystemFont, system-ui, "Apple SD Gothic Neo", "Noto Sans KR", sans-serif;
+  font-variant-numeric: tabular-nums;
   line-height: 1.2;
 }
 

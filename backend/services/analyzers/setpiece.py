@@ -5,6 +5,7 @@ from sklearn.cluster import KMeans
 from sklearn.preprocessing import StandardScaler
 from typing import List, Dict
 from collections import Counter
+from ..core.cache import layered_cache
 from ..core.spec import Analyzer
 
 class SetPieceAnalyzer(Analyzer):
@@ -177,3 +178,14 @@ class SetPieceAnalyzer(Analyzer):
 def team_list(events_df: pd.DataFrame, n_top: int = 2) -> List[Dict]:
     analyzer = SetPieceAnalyzer(events_df, n_top)
     return analyzer.data()
+
+
+# 캐싱 진입점: (team_id, n_games, top_k, mark) 기준 메모이즈
+# L1(메모리 single-flight) + L2(DiskCache pickle) 2단 — 재시작 후에도 L2 hit으로 콜드 스타트 회피
+@layered_cache("set", maxsize=256)
+def set_box(team_id: int, n_games: int, top_k: int, mark: tuple) -> List[Dict]:
+    from ..core.data import team_events
+    events = team_events(team_id, n_games)
+    if len(events) == 0:
+        return []
+    return team_list(events, top_k)

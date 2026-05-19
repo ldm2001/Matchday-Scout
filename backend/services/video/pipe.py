@@ -39,7 +39,7 @@ from .model import Clip, HeatCell, Heatmap, Moment, Overlay, Report
 
 # 루트 경로 계산 및 캐시 디렉토리 설정
 ROOT = Path(__file__).resolve().parents[2]
-CACHE = ROOT / "cache" / "video"
+CACHE = ROOT / ".cache" / "video"
 CACHE.mkdir(parents=True, exist_ok=True)
 
 # 시뮬레이션 및 모델 환경 변수 상수 설정

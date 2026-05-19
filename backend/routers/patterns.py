@@ -2,8 +2,8 @@
 from fastapi import APIRouter, HTTPException
 from typing import Optional
 import math
-from services.core.data import match_events, data_stamp
-from services.analyzers.pattern import team_pat, PhaseAnalyzer
+from services.core.data import match_events, data_mark
+from services.analyzers.pattern import team_pat, pat_box, PhaseAnalyzer
 from services.analyzers.team import note_box
 from services.vaep.model import sum_box
 
@@ -36,16 +36,14 @@ router = APIRouter()
 @router.get("/{team_id}")
 def patterns(team_id: int, n_games: int = 5, n_patterns: int = 3):
     try:
-        # 수비 방해 이벤트까지 포함하고, 분석용 정규화가 적용된 원시 이벤트 데이터 확보
-        events = match_events(team_id, n_games, include_opponent=True, normalize_mode="team")
-        # 해당 표본 경기들에 기록이 1건도 없으면 404 떨굼
-        if len(events) == 0:
+        # 캐시 키용 데이터 스탬프 확보 후 캐싱된 pat_box 진입점으로 위임 (note_box와 캐시 공유)
+        mark = data_mark()
+        result = pat_box(team_id, n_games, n_patterns, mark)
+        # 결과가 비었으면 표본 경기 이벤트 부재로 간주
+        if not result:
             raise HTTPException(status_code=404, detail="이벤트 데이터가 없습니다")
-        
-        # 코어 분석 모듈(DTW/K-Means 등 적용)을 통해 목표 N개 수만큼의 대표 패턴군 산출
-        result = team_pat(events, team_id, n_patterns)
-        # 통계 메타 모음과 함께 분석 결과를 JSON 형태로 정리하여 서빙
-        return {'team_id': team_id, 'n_games_analyzed': n_games, 'total_events': len(events), 'patterns': result}
+        # 통계 메타와 함께 분석 결과를 JSON 형태로 정리하여 서빙
+        return {'team_id': team_id, 'n_games_analyzed': n_games, 'patterns': result}
     # 기획된 HTTP 에러는 던지고, 이외 로직 에러는 500에 태워 보냄
     except HTTPException: raise
     except Exception as e: raise HTTPException(status_code=500, detail=str(e))
@@ -157,7 +155,7 @@ def phase_data(team_id: int, phase_id: int, n_games: int = 5):
 def team_note(team_id: int, n_games: int = 100):
     try:
         # 변경점 식별 스탬프
-        mark = data_stamp()
+        mark = data_mark()
         # 캐싱된 LLM 분석 노트 박스 질의하여 결과 뽑아옴
         result = note_box(team_id, n_games, mark)
         # 결과가 없으면 분석 실패
@@ -173,7 +171,7 @@ def team_note(team_id: int, n_games: int = 100):
 def team_vals(team_id: int, n_games: int = 100, n_top: int = 10):
     try:
         # 데이터 갱신 타임 체크
-        mark = data_stamp()
+        mark = data_mark()
         # 캐시 레이어를 곁들인 코어 VAEP 모듈 점수 합산 로직 호출 (상위 n_top 만큼)
         result = sum_box(team_id, n_games, n_top, mark)
         # 실패하면 에러처리

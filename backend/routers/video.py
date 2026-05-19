@@ -4,7 +4,7 @@ from fastapi import APIRouter, File, Form, HTTPException, UploadFile
 from pydantic import BaseModel
 from services.video import job_item as job_item_core, job_slot as job_slot_core
 
-CACHE = Path(__file__).resolve().parents[1] / "cache" / "video" # 업로드 캐시 경로
+CACHE = Path(__file__).resolve().parents[1] / ".cache" / "video" # 업로드 캐시 경로
 EXTS = {".mp4", ".mov", ".mkv"} # 허용 확장자
 CHUNK = 1024 * 1024 # 청크 크기
 

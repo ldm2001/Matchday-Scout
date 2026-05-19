@@ -1,7 +1,7 @@
 # 세트피스 분석 API 라우터
 from fastapi import APIRouter, HTTPException
-from services.core.data import team_events
-from services.analyzers.setpiece import team_list, SetPieceAnalyzer
+from services.core.data import team_events, data_mark
+from services.analyzers.setpiece import team_list, set_box, SetPieceAnalyzer
 
 # 라우트 엔드포인트를 묶어줄 FastAPI 라우터 객체 할당
 router = APIRouter()
@@ -10,31 +10,24 @@ router = APIRouter()
 @router.get("/{team_id}")
 def setpieces(team_id: int, n_games: int = 5, n_top: int = 2):
     try:
-        # 쿼리 파라미터 기준 최근 N경기의 이벤트 조회
-        events = team_events(team_id, n_games)
-        # 매치 데이터가 비어있다면 404 리턴
-        if len(events) == 0:
+        # 캐시 키용 스탬프 확보 후 캐싱된 set_box 진입점으로 위임 (note_box와 캐시 공유)
+        mark = data_mark()
+        routines = set_box(team_id, n_games, n_top, mark)
+        if not routines:
             raise HTTPException(status_code=404, detail="이벤트 데이터가 없습니다")
-        
-        # 코어 분석 모듈(team_list)을 태워 빈도가 높은 대표 세트피스 루틴 n_top개 선별
-        routines = team_list(events, n_top)
-        
-        # 이벤트 원장을 필터링하여 각 세트피스 유형별 총 발생 횟수 카운팅 딕셔너리 생성
+
+        # 코너킥/프리킥 총 발생 횟수는 별도 카운팅 (원본 이벤트 필터링)
+        events = team_events(team_id, n_games)
         setpiece_counts = {
-            # type_name이 정확히 Pass_Corner인 코너킥 횟수 합산
             'corners': len(events[events['type_name'] == 'Pass_Corner']),
-            # 이름에 Freekick이 포함된 모든 프리킥 횟수 합산
             'freekicks': len(events[events['type_name'].str.contains('Freekick', na=False)])
         }
-        
-        # 분석 요약본을 응답 JSON 포맷으로 패킹하여 송출
-        return {'team_id': team_id, 'n_games_analyzed': n_games, 
+
+        return {'team_id': team_id, 'n_games_analyzed': n_games,
                 'setpiece_counts': setpiece_counts, 'routines': routines}
-    # 예상된 HTTP 예외 처리 바인딩
     except HTTPException:
         raise
     except Exception as e:
-        # 500 에러 처리
         raise HTTPException(status_code=500, detail=str(e))
 
 # 코너킥 상세 분석

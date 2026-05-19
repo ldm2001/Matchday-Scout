@@ -402,12 +402,13 @@ export default function PitchReplay({
                     onClick={handleReset}
                     className={styles.resetBtn}
                 >
-                    ⏮
+                    처음
                 </button>
 
                 <button
                     onClick={onPlayPause}
                     className={styles.playBtn}
+                    aria-label={isPlaying ? '정지' : '재생'}
                 >
                     {isPlaying ? '⏸' : '▶'}
                 </button>
@@ -432,11 +433,11 @@ export default function PitchReplay({
             {/* Legend */}
             <div className={styles.legendWrap}>
                 <span className={styles.legendItem}>
-                    <span className={styles.legendMarker} style={{ background: '#fbbf24' }}></span>
+                    <span className={`${styles.legendMarker} ${styles.legendMarkerCurrent}`}></span>
                     현재 이벤트
                 </span>
                 <span className={styles.legendItem}>
-                    <span className={styles.legendMarker} style={{ background: 'rgba(255,255,255,0.85)', border: '1px solid rgba(255,255,255,0.4)' }}></span>
+                    <span className={`${styles.legendMarker} ${styles.legendMarkerPast}`}></span>
                     지나간 이벤트
                 </span>
             </div>

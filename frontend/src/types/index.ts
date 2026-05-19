@@ -129,3 +129,52 @@ export interface ReplayEvent {
     end_y: number;
     result: string;
 }
+
+// 공격 페이즈 요약 (page.tsx에서 이관)
+export interface Phase {
+    phase_id: number;
+    length: number;
+    duration: number;
+    has_shot: boolean;
+    passes: number;
+    start_zone: string;
+    event_sequence: string;
+}
+
+// 팀 순위/폼 정보 (사이드바)
+export interface TeamStanding {
+    team_id: number;
+    team_name: string;
+    rank: number;
+    played: number;
+    wins: number;
+    draws: number;
+    losses: number;
+    goals_for: number;
+    goals_against: number;
+    goal_diff: number;
+    points: number;
+    form: string[];
+}
+
+// 사전 시뮬레이션 결과 (Pre-match)
+export interface SimResult {
+    base_prediction: { win: number; draw: number; lose: number };
+    optimal_prediction: { win: number; draw: number; lose: number };
+    win_improvement: number;
+    tactical_suggestions: Array<{
+        priority: number;
+        tactic: string;
+        reason: string;
+        expected_effect: string;
+        win_prob_change: string;
+    }>;
+    scenarios?: Array<{
+        scenario: string;
+        description: string;
+        before: { win: number; draw: number; lose: number };
+        after: { win: number; draw: number; lose: number };
+        win_change: number;
+        recommendation: string;
+    }>;
+}

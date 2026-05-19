@@ -30,9 +30,13 @@ const clamp = (v: number, min: number, max: number) => Math.min(max, Math.max(mi
 
 export default function SetpiecePitch({ routine }: SetpiecePitchProps) {
     const uid = useId().replace(/:/g, '');
-    // 실제 축구장 비율 (105m x 68m)
+    // 실제 축구장 비율 (105m x 68m), 좌우 그라스 패딩으로 와이드 방송 화면 비율
     const W = 105;
     const H = 68;
+    const PAD_X = 13;
+    const PAD_Y = 3;
+    const VBW = W + PAD_X * 2;
+    const VBH = H + PAD_Y * 2;
 
     const isCorner = routine.type.includes('Corner');
     const isInswing = routine.swing_type === 'inswing';
@@ -104,7 +108,6 @@ export default function SetpiecePitch({ routine }: SetpiecePitchProps) {
                     {isCorner ? '코너킥' : '프리킥'} · {isInswing ? '인스윙' : '아웃스윙'}
                 </div>
                 <div className={styles.kickerCard}>
-                    <span className={styles.kickerIcon}>⚽</span>
                     <span className={styles.kickerName}>
                         {zoneLabel} 타겟 · 슛전환 {(routine.shot_rate * 100).toFixed(0)}%
                     </span>
@@ -112,7 +115,7 @@ export default function SetpiecePitch({ routine }: SetpiecePitchProps) {
             </div>
 
             <svg
-                viewBox={`-3 -3 ${W + 6} ${H + 6}`}
+                viewBox={`${-PAD_X} ${-PAD_Y} ${VBW} ${VBH}`}
                 className={styles.pitchSvg}
                 preserveAspectRatio="xMidYMid meet"
                 style={{ '--kg-accent': accent, '--kg-accent-rgb': accentRGB } as React.CSSProperties}
@@ -165,7 +168,7 @@ export default function SetpiecePitch({ routine }: SetpiecePitchProps) {
                 </defs>
 
                 {/* 잔디 배경 */}
-                <rect x="-3" y="-3" width={W + 6} height={H + 6} fill={`url(#grass-${uid})`} />
+                <rect x={-PAD_X} y={-PAD_Y} width={VBW} height={VBH} fill={`url(#grass-${uid})`} />
                 <rect x="0" y="0" width={W} height={H} fill={`url(#stripe-${uid})`} />
 
                 {/* 외곽 그림자 */}

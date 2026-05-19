@@ -1,6 +1,6 @@
 # 네트워크 분석 API 라우터
 from fastapi import APIRouter, HTTPException
-from services.core.data import team_events, data_stamp
+from services.core.data import team_events, data_mark
 from services.analyzers.network import net_box, NetworkAnalyzer
 
 # 네임스페이스 분리를 위한 FastAPI 라우터 객체 할당
@@ -11,7 +11,7 @@ router = APIRouter()
 def network(team_id: int, n_games: int = 5, n_hubs: int = 2):
     try:
         # 데이터가 마지막으로 업데이트된 기준 시간 확인
-        mark = data_stamp()
+        mark = data_mark()
         # net_box를 호출하여 네트워크 분석 결과 획득
         result = net_box(team_id, n_games, n_hubs, mark)
         # 조회된 이벤트 분석 데이터가 없으면 404 리턴
@@ -44,7 +44,7 @@ def network(team_id: int, n_games: int = 5, n_hubs: int = 2):
 def graph(team_id: int, n_games: int = 5):
     try:
         # DB 변경 상태 체크를 위한 최신 스탬프 조회
-        mark = data_stamp()
+        mark = data_mark()
         # 캐싱 로직을 통과하여 네트워크 그래프 전체 분석본 산출
         result = net_box(team_id, n_games, 2, mark)
         # 경기 데이터가 전혀 존재하지 않으면 404 예외 처리

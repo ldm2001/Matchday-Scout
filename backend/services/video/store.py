@@ -11,7 +11,7 @@ from typing import Any
 # 캐시 루트 경로
 ROOT = Path(__file__).resolve().parents[2]
 # 비디오 캐시 경로
-CACHE = ROOT / "cache" / "video"
+CACHE = ROOT / ".cache" / "video"
 # 작업 DB 경로
 DB = CACHE / "jobs.sqlite3"
 # 공통 조회 컬럼

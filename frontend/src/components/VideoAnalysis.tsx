@@ -745,7 +745,7 @@ export default function VideoAnalysis() {
       strokeColor: string,
       marker: { x: number; y: number }
     ) => {
-      ctx.font = '700 12px IBM Plex Sans KR, sans-serif';
+      ctx.font = '700 12px "Pretendard Variable", Pretendard, system-ui, sans-serif';
       const w = Math.max(44, ctx.measureText(text).width + 18);
       const h = 24;
       const baseX = x + 10 + w > rect.width ? x - w - 10 : x + 10;
@@ -785,10 +785,10 @@ export default function VideoAnalysis() {
         ctx.fill();
       }
       drawTag(actual.x, actual.y, '실제 위치', '#c81e3a', '#fecaca', actual);
-      drawTag(suggest.x, suggest.y, 'AI 제안', '#1d4ed8', '#bfdbfe', suggest);
+      drawTag(suggest.x, suggest.y, '대안 위치', '#1d4ed8', '#bfdbfe', suggest);
       if (overlay) {
         ctx.fillStyle = '#0f172a';
-        ctx.font = '700 12px IBM Plex Sans KR, sans-serif';
+        ctx.font = '700 12px "Pretendard Variable", Pretendard, system-ui, sans-serif';
         const angleText = `${overlay.angle.toFixed(0)}°`;
         const boxW = ctx.measureText(angleText).width + 14;
         const ax = Math.max(8, Math.min(rect.width - boxW - 8, actual.x - boxW / 2));
@@ -848,7 +848,7 @@ export default function VideoAnalysis() {
       <div className={styles.head}>
         <div>
           <div className={styles.title}>영상 분석</div>
-          <div className={styles.sub}>장면별 실제 위치와 AI 제안을 프레임 단위로 비교합니다.</div>
+          <div className={styles.sub}>장면별 실제 위치와 대안 시뮬레이션을 프레임 단위로 비교합니다.</div>
         </div>
         <div className={styles.status}>
           <span className={styles.statusBadge}>
@@ -981,7 +981,7 @@ export default function VideoAnalysis() {
                 <canvas ref={canvasRef} className={styles.overlay} />
                 <div className={styles.overlayLegend}>
                   <span className={styles.legendItem}><span className={`${styles.legendDot} ${styles.legendDotActual}`} />실제 위치</span>
-                  <span className={styles.legendItem}><span className={`${styles.legendDot} ${styles.legendDotSuggest}`} />AI 제안</span>
+                  <span className={styles.legendItem}><span className={`${styles.legendDot} ${styles.legendDotSuggest}`} />대안 위치</span>
                   <span className={styles.legendItem}><span className={styles.legendDash} />재배치 경로</span>
                 </div>
                 {overlayVisible && tacticLine && (
@@ -996,7 +996,7 @@ export default function VideoAnalysis() {
                 <canvas ref={canvasRef} className={styles.overlay} />
                 <div className={styles.overlayLegend}>
                   <span className={styles.legendItem}><span className={`${styles.legendDot} ${styles.legendDotActual}`} />실제 위치</span>
-                  <span className={styles.legendItem}><span className={`${styles.legendDot} ${styles.legendDotSuggest}`} />AI 제안</span>
+                  <span className={styles.legendItem}><span className={`${styles.legendDot} ${styles.legendDotSuggest}`} />대안 위치</span>
                   <span className={styles.legendItem}><span className={styles.legendDash} />재배치 경로</span>
                 </div>
                 {overlayVisible && tacticLine && (

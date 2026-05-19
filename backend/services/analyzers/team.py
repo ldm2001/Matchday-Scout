@@ -1,10 +1,11 @@
 # 팀 강약점 AI 분석 서비스
 from typing import Dict, List
-from functools import lru_cache
+from concurrent.futures import ThreadPoolExecutor
 import numpy as np
+from ..core.cache import layered_cache
 from ..core.data import match_events, team_events
-from .pattern import team_pat
-from .setpiece import team_list
+from .pattern import team_pat, pat_box
+from .setpiece import team_list, set_box
 from .network import net_box
 from ..core.spec import Analyzer
 
@@ -218,33 +219,26 @@ class TeamAnalyzer(Analyzer):
         # 데이터베이스 최종 반영된 타임스탬프 (이 값이 바뀌면 캐시가 만료됨을 의미)
         self.mark = mark
 
-    # 실제 모든 무거운 하위 분석 함수(패턴, 세트피스, 통계망)를 동시 호출하여 취합하는 병목 포인트
+    # 패턴/세트피스/허브 세 하위 분석을 병렬 실행하여 병목 완화. 라우터와 캐시 키를 공유함
     def data(self) -> Dict:
-        # 1. 원시 이벤트 조회
-        events = match_events(self.team_id, self.n_games, include_opponent=True)
-        if len(events) == 0:
+        with ThreadPoolExecutor(max_workers=3) as ex:
+            pat_fut = ex.submit(pat_box, self.team_id, self.n_games, 5, self.mark)
+            set_fut = ex.submit(set_box, self.team_id, self.n_games, 4, self.mark)
+            hub_fut = ex.submit(net_box, self.team_id, self.n_games, 3, self.mark)
+            patterns = pat_fut.result()
+            setpieces = set_fut.result()
+            hubs_result = hub_fut.result()
+
+        if not patterns and not setpieces:
             return {}
-        # 2. 공격 루트 패턴 추출 연산 (가장 무거움)
-        patterns = team_pat(events, self.team_id, n_patterns=5)
-        
-        # 3. 팀 전용 이벤트 데이터 묶음 재조회
-        team_df = team_events(self.team_id, self.n_games)
-        if len(team_df) == 0:
-            return {}
-        # 4. 세트피스 루틴 추출 필터링
-        setpieces = team_list(team_df, n_top=4)
-        
-        # 5. 패스 네트워크 허브 스코어링 박스 연동
-        hubs_result = net_box(self.team_id, self.n_games, 3, self.mark)
-        # 결과 객체 규격 안전화 처리 보정
+
         hubs = hubs_result.get("hubs", []) if isinstance(hubs_result, dict) else hubs_result
-        
-        # 6. 상단 요약 함수에 던져서 최종 JSON 획득
         return team_stats(self.team_id, patterns, setpieces, hubs)
 
 
-# API 라우터 등에서 빈번히 호출되어도 CPU를 터뜨리지 않게 64개까지 LRU 캐시 바인딩 해두는 진입점 함수 (스탬프가 키 역할)
-@lru_cache(maxsize=64)
+# 라우터에서 빈번히 호출되는 종합 분석 결과를 L1(메모리) + L2(DiskCache) 2단 캐시로 메모이즈
+# TeamAnalyzer 내부는 pat_box(.., 5) / set_box(.., 4) / net_box(.., 3) 호출 — 라우터 기본값과 top_k가 달라 별도 키 (warmup이 양쪽 prewarm)
+@layered_cache("note", maxsize=256)
 def note_box(team_id: int, n_games: int, mark: tuple) -> Dict:
     analyzer = TeamAnalyzer(team_id, n_games, mark)
     return analyzer.data()

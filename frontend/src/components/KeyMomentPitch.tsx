@@ -180,13 +180,21 @@ function Modal3D({ moment, onClose, teamName }: { moment: KeyMoment; onClose: ()
     const moveLabel = `${shiftDistance.toFixed(1)}m`;
     const goalLabel = `${goalDistance.toFixed(1)}m`;
 
-    // 실제 xG 수치 및 AI 추천으로 얻을 수 있는 xG 향상분(Delta) 계산
+    // 실제 슈팅 xG와 대안 위치 xG (확률값 0~1로 표시)
     const actualXg = pct(moment.failure_analysis?.xg);
     const expectedXg = pct(moment.suggestion?.expected_xg);
     const deltaXg = actualXg !== null && expectedXg !== null ? expectedXg - actualXg : null;
+    const actualXgLabel = actualXg !== null ? (actualXg / 100).toFixed(3) : '—';
+    const expectedXgLabel = expectedXg !== null ? (expectedXg / 100).toFixed(3) : '—';
     const deltaLabel = deltaXg !== null
-        ? `${deltaXg > 0 ? '+' : ''}${deltaXg.toFixed(1)}%p`
+        ? `${deltaXg >= 0 ? '+' : ''}${(deltaXg / 100).toFixed(3)} / ${deltaXg >= 0 ? '+' : ''}${deltaXg.toFixed(1)}%p`
         : (moment.suggestion?.xg_improvement || '—');
+    const deltaPillLabel = deltaXg !== null
+        ? `${deltaXg >= 0 ? '+' : ''}${deltaXg.toFixed(1)}%p`
+        : (moment.suggestion?.xg_improvement || '—');
+    const scenarioText = (actualXg !== null && expectedXg !== null)
+        ? `현재 장면 기준으로 슈팅 위치를 ${shiftDistance.toFixed(1)}m 조정했을 때 기대득점이 ${(actualXg / 100).toFixed(3)}에서 ${(expectedXg / 100).toFixed(3)}으로 상승하는 대안 시나리오입니다.`
+        : null;
     const deltaToneClass = deltaXg === null
         ? styles.deltaNeutral
         : deltaXg >= 0
@@ -248,7 +256,7 @@ function Modal3D({ moment, onClose, teamName }: { moment: KeyMoment; onClose: ()
                         </div>
                         <div className={styles.headerRight}>
                             <div className={`${styles.deltaPill} ${deltaToneClass}`}>
-                                개선 {deltaLabel}
+                                xG 개선 {deltaPillLabel}
                             </div>
                             <button
                                 onClick={onClose}
@@ -280,24 +288,30 @@ function Modal3D({ moment, onClose, teamName }: { moment: KeyMoment; onClose: ()
 
                         <div className={styles.scoreRow}>
                             <div className={styles.scoreCard}>
-                                <div className={styles.scoreLabel}>실제 xG</div>
+                                <div className={styles.scoreLabel}>실제 슈팅 xG</div>
                                 <div className={styles.scoreValue}>
-                                    {actualXg !== null ? `${actualXg.toFixed(1)}%` : '—'}
+                                    {actualXgLabel}
                                 </div>
                                 <div className={styles.scoreFoot}>실제 위치</div>
                             </div>
                             <div className={styles.scoreBridge}>
-                                <span className={styles.scoreBridgeLabel}>xG 변화</span>
+                                <span className={styles.scoreBridgeLabel}>xG 개선</span>
                                 <span className={`${styles.scoreDelta} ${deltaToneClass}`}>{deltaLabel}</span>
                             </div>
                             <div className={`${styles.scoreCard} ${styles.scoreCardSuggest}`}>
-                                <div className={styles.scoreLabel}>AI 제안 xG</div>
+                                <div className={styles.scoreLabel}>대안 위치 xG</div>
                                 <div className={`${styles.scoreValue} ${styles.scoreValueSuggest}`}>
-                                    {expectedXg !== null ? `${expectedXg.toFixed(1)}%` : '—'}
+                                    {expectedXgLabel}
                                 </div>
-                                <div className={styles.scoreFoot}>추천 위치 기준</div>
+                                <div className={styles.scoreFoot}>대안 시뮬레이션 기준</div>
                             </div>
                         </div>
+
+                        {scenarioText && (
+                            <div className={styles.scenarioNote}>
+                                {scenarioText}
+                            </div>
+                        )}
 
                         <div className={styles.statStrip}>
                             <div className={styles.statItem}>
@@ -305,7 +319,7 @@ function Modal3D({ moment, onClose, teamName }: { moment: KeyMoment; onClose: ()
                                 <div className={styles.statValue}>{actualCoord}</div>
                             </div>
                             <div className={styles.statItem}>
-                                <div className={styles.statLabel}>추천 위치</div>
+                                <div className={styles.statLabel}>대안 위치</div>
                                 <div className={styles.statValue}>{targetCoord}</div>
                             </div>
                             <div className={styles.statItem}>
@@ -322,7 +336,7 @@ function Modal3D({ moment, onClose, teamName }: { moment: KeyMoment; onClose: ()
                             <div className={styles.pitchCard}>
                                 <div className={styles.pitchHead}>
                                     <div className={styles.pitchTitle}>포지셔닝 맵</div>
-                                    <div className={styles.pitchMeta}>탑뷰 · 실제 vs AI</div>
+                                    <div className={styles.pitchMeta}>탑뷰 · 실제 vs 대안</div>
                                 </div>
                                 <div className={styles.pitchWrap}>
                                     <Pitch3D moment={moment} width={pitchSize.width} height={pitchSize.height} />
@@ -334,7 +348,7 @@ function Modal3D({ moment, onClose, teamName }: { moment: KeyMoment; onClose: ()
                                     </span>
                                     <span className={`${styles.legendItem} ${styles.legendLabelTarget}`}>
                                         <span className={`${styles.legendSwatch} ${styles.legendTarget}`} />
-                                        AI 제안
+                                        대안 위치
                                     </span>
                                     <span className={`${styles.legendItem} ${styles.legendLabelPath}`}>
                                         <span className={styles.legendPath} />
@@ -362,8 +376,8 @@ function Modal3D({ moment, onClose, teamName }: { moment: KeyMoment; onClose: ()
 
                                 <div className={`${styles.summaryCard} ${styles.summaryCardSuggest}`}>
                                     <div className={styles.summaryHeader}>
-                                        <span className={`${styles.summaryBadge} ${styles.summaryBadgeSuggest}`}>제안</span>
-                                        <span className={styles.summaryHeading}>AI 제안</span>
+                                        <span className={`${styles.summaryBadge} ${styles.summaryBadgeSuggest}`}>대안</span>
+                                        <span className={styles.summaryHeading}>대안 시뮬레이션</span>
                                     </div>
                                     <div className={styles.summaryText}>{suggestionText}</div>
                                 </div>

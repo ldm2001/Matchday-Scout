@@ -259,7 +259,7 @@ npm install
 npm run dev
 ```
 
-접속: `http://localhost:3000`
+접속: `http://localhost:3001`
 
 
 1. **백엔드 디렉토리로 이동**:
@@ -321,7 +321,7 @@ npm install
 npm run dev
 ```
 
-**접속**: `http://localhost:3000`
+**접속**: `http://localhost:3001`
 
 ## 성능 최적화
 

@@ -3,8 +3,8 @@ import pandas as pd
 import numpy as np
 import networkx as nx
 from typing import Dict, List
-from functools import lru_cache
 import math
+from ..core.cache import layered_cache
 from ..core.data import team_events
 from ..core.spec import Analyzer
 
@@ -253,9 +253,11 @@ def team_net(events_df: pd.DataFrame, n_hubs: int = 2) -> Dict:
     analyzer = NetworkAnalyzer(events_df, n_hubs)
     return analyzer.data()
 
-@lru_cache(maxsize=128)
-def net_box(team_id: int, n_games: int, n_hubs: int, mark: tuple) -> Dict:
+# 캐싱 진입점: (team_id, n_games, top_k, mark) 기준 메모이즈
+# L1(메모리 single-flight) + L2(DiskCache pickle) 2단 — 재시작 후에도 L2 hit으로 콜드 스타트 회피
+@layered_cache("net", maxsize=256)
+def net_box(team_id: int, n_games: int, top_k: int, mark: tuple) -> Dict:
     events = team_events(team_id, n_games)
     if len(events) == 0:
         return {}
-    return team_net(events, n_hubs)
+    return team_net(events, top_k)
